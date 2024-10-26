@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "509548278045",
+    "project_id": "restaurantdata-d4127",
+    "storage_bucket": "restaurantdata-d4127.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:509548278045:android:a8cf69b70c5190e096f1f4",
+        "android_client_info": {
+          "package_name": "com.happyrestaurantapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDjA4FDt6Os3MW8AELs5Fgb3_3Ig3eKSyk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
