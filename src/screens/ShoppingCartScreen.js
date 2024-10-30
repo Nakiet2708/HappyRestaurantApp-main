@@ -9,6 +9,9 @@ import firestore from '@react-native-firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const formatPrice = (price) => {
+  if (price === undefined || price === null) {
+    return "0"; // Hoặc một giá trị mặc định khác
+  }
   return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 };
 
@@ -74,7 +77,7 @@ export default function ShoppingCartScreen() {
           </Text>
         )}
         <View style={styles.priceQuantityContainer}>
-          <Text style={styles.priceText}>{formatPrice(item.ProductTotalPrice)} VNĐ</Text>
+          <Text style={styles.priceText}>{formatPrice(item.price)} VNĐ</Text>
           {item.fromTableDetails ? (
             <TouchableOpacity onPress={() => deleteItem(item.id)}>
               <Icon name="delete" size={24} color={colors.grey2} />
@@ -125,7 +128,11 @@ export default function ShoppingCartScreen() {
             onValueChange={toggleSelectAll}
             tintColors={{ true: colors.buttons, false: colors.grey3 }}
           />
-          <Text style={styles.selectAllText}>Tất cả ({cartItems.length} món ăn)</Text>
+          <Text style={styles.selectAllText}>
+            {cartItems.some(item => item.fromTableDetails) ? 
+              `Đặt thêm (${cartItems.length} món)` : 
+              `Tất cả (${cartItems.length} món ăn)`}
+          </Text>
           <TouchableOpacity onPress={deleteSelectedItems} style={styles.deleteButton}>
             <Icon name="delete" size={24} color={colors.grey2} />
           </TouchableOpacity>
@@ -138,7 +145,7 @@ export default function ShoppingCartScreen() {
         contentContainerStyle={styles.listContainer}
       />
       <View style={styles.totalContainer}>
-        <Text style={styles.totalText}>Tạm tính:</Text>
+        <Text style={styles.totalText}>Giá gốc:</Text>
         <Text style={styles.totalPrice}>{formatPrice(subtotal)} VNĐ</Text>
       </View>
       <View style={styles.totalContainer}>

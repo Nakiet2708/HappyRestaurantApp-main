@@ -10,6 +10,9 @@ import { useCart } from '../../contexts/CartContext'; // Import useCart
 import CartButton from '../../components/CartButton';
 
 const formatPrice = (price) => {
+  if (price === undefined || price === null) {
+    return "0"; // Hoặc một giá trị mặc định khác
+  }
   return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 };
 
@@ -25,7 +28,7 @@ export default function TableDetail({ route }) {
   const { table } = route.params;
   const [options, setOptions] = useState([]);
   const [selectedOptions, setSelectedOptions] = useState({});
-  const [totalPrice, setTotalPrice] = useState(table.price || 0);
+  const [totalPrice, setTotalPrice] = useState(table.price || 0); // Đảm bảo giá trị mặc định là số
   const [selectedTime, setSelectedTime] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null); // Đặt giá trị mặc định là null
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -117,7 +120,7 @@ export default function TableDetail({ route }) {
         }
         return sum;
       }, 0);
-      setTotalPrice(table.price + optionsTotal);
+      setTotalPrice((table.price || 0) + optionsTotal); // Đảm bảo giá trị mặc định là số
     };
 
     calculateTotalPrice();

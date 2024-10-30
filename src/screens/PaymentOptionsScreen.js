@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Alert, StyleSheet, Image, ScrollView, Platform, NativeModules, DeviceEventEmitter } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, StyleSheet, Image, ScrollView, Platform, NativeModules, DeviceEventEmitter, Clipboard } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useCart } from '../contexts/CartContext';
 import { colors } from '../global/styles';
@@ -7,7 +7,7 @@ import CryptoJS from 'crypto-js';
 import moment from 'moment';
 import firestore from '@react-native-firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Linking from 'react-native';
+import InAppBrowser from 'react-native-inappbrowser-reborn';
 import RNMomosdk from 'react-native-momosdk';
 
 // Cấu hình ứng dụng momo
@@ -193,7 +193,6 @@ export default function PaymentOptionsScreen({ navigation, route }) {
             text: 'Kiểm tra trạng thái thanh toán',
             onPress: checkZaloPayStatus,
           },
-
         ],
         { cancelable: true }
       );
@@ -202,13 +201,27 @@ export default function PaymentOptionsScreen({ navigation, route }) {
         console.log('Payment URL:', responseData.order_url);
         setLastTransactionId(app_trans_id);
         if (responseData.order_url) {
-          const supported = await Linking.canOpenURL(responseData.order_url);
-          if (supported) {
-            await Linking.openURL(responseData.order_url);
-          } else {
-            await Linking.openURL(responseData.order_url);
+          try {
+            if (await InAppBrowser.isAvailable()) {
+              await InAppBrowser.open(responseData.order_url, {
+                // Các tùy chọn khác nếu cần
+                dismissButtonStyle: 'cancel',
+                preferredBarTintColor: '#453AA4',
+                preferredControlTintColor: 'white',
+                readerMode: false,
+                animated: true,
+                modalPresentationStyle: 'fullScreen',
+                modalTransitionStyle: 'coverVertical',
+                modalEnabled: true,
+                enableBarCollapsing: false,
+              });
+              console.log('Success', 'Payment page opened in browser.');
+            } else {
+              console.log('Error', 'InAppBrowser is not available');
+            }
+          } catch (error) {
+            console.error('Error opening URL:', error);
           }
-          console.log('Success', 'Payment page opened in browser.');
         } else {
           console.log('Error', 'Payment URL not provided');
         }
@@ -222,7 +235,7 @@ export default function PaymentOptionsScreen({ navigation, route }) {
               text: 'Kiểm tra trạng thái thanh toán',
               onPress: checkZaloPayStatus,
             },
-
+            
           ],
           { cancelable: true }
         );
@@ -240,12 +253,11 @@ export default function PaymentOptionsScreen({ navigation, route }) {
   };
 
   const checkZaloPayStatus = async () => {
-    if (!lastTransactionId) {
-      Alert.alert('Lỗi', 'Không có giao dịch gần đây để kiểm tra.');
-      return;
-    }
 
     try {
+      // Thêm thời gian chờ
+      await new Promise(resolve => setTimeout(resolve, 5000)); // Chờ 5 giây
+
       const data = `${config.app_id}|${lastTransactionId}|${config.key1}`;
       const mac = CryptoJS.HmacSHA256(data, config.key1).toString();
 
@@ -278,7 +290,6 @@ export default function PaymentOptionsScreen({ navigation, route }) {
       Alert.alert('Transaction Status', `${statusMessage}\n\nDetails: ${result.return_message}`);
     } catch (error) {
       console.error('Status Check Error:', error);
-      
     }
   };
 
