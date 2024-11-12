@@ -72,9 +72,12 @@ export default function ShoppingCartScreen() {
           {item.name} {item.options.length > 0 && `(${item.options.join(', ')})`}
         </Text>
         {item.fromTableDetails && (
-          <Text style={styles.dateTimeText}>
-            {`${item.timeSlot} ${item.date}`}
-          </Text>
+          <>
+            <Text style={styles.restaurantName}>{item.restaurantName}</Text>
+            <Text style={styles.dateTimeText}>
+              {`${item.timeSlot} ${item.date}`}
+            </Text>
+          </>
         )}
         <View style={styles.priceQuantityContainer}>
           <Text style={styles.priceText}>{formatPrice(item.price)} VNĐ</Text>
@@ -92,16 +95,27 @@ export default function ShoppingCartScreen() {
 
   const handleCheckout = async () => {
     try {
+      if (!cartItems || cartItems.length === 0) {
+        Alert.alert(
+          "Thông báo",
+          "Giỏ hàng của bạn đang trống. Vui lòng thêm sản phẩm vào giỏ hàng."
+        );
+        return;
+      }
+
       const userData = await AsyncStorage.getItem('user');
       if (userData) {
         const user = JSON.parse(userData);
         const userDoc = await firestore().collection('USERS').doc(user.email).get();
         
         if (userDoc.exists) {
-          const { username, phone } = userDoc.data();
+          const { username, phone, address } = userDoc.data();
           
-          if (!username || !phone) {
-            Alert.alert("Thông báo", "Bạn hãy nhập đầy đủ thông tin để thanh toán");
+          if (!username || !phone || !address) {
+            Alert.alert(
+              "Thông báo", 
+              "Bạn hãy nhập đầy đủ thông tin (tên, số điện thoại và địa chỉ) để thanh toán"
+            );
             return;
           }
         }
@@ -130,7 +144,7 @@ export default function ShoppingCartScreen() {
           />
           <Text style={styles.selectAllText}>
             {cartItems.some(item => item.fromTableDetails) ? 
-              `Đặt thêm (${cartItems.length} món)` : 
+              `Đặt thêm ${cartItems.length - 1} món cho phòng` : 
               `Tất cả (${cartItems.length} món ăn)`}
           </Text>
           <TouchableOpacity onPress={deleteSelectedItems} style={styles.deleteButton}>
@@ -277,5 +291,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.grey2,
     marginBottom: 4,
+  },
+  restaurantName: {
+    fontSize: 14,
+    color: colors.grey2,
+    marginBottom: 4,
+    fontStyle: 'italic'
   },
 });

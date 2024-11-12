@@ -211,7 +211,6 @@ export default function TableDetail({ route }) {
       .filter(key => selectedOptions[key])
       .map(key => options.find(opt => opt.id === key).name);
 
-    // Định dạng selectedDate thành "YYYY-MM-DD"
     const formattedDate = selectedDate ? selectedDate.toISOString().split('T')[0] : null;
 
     const cartItem = {
@@ -221,13 +220,12 @@ export default function TableDetail({ route }) {
       price: totalPrice,
       options: selectedOptionsList,
       timeSlot: timeSlot,
-      date: formattedDate, // Sử dụng ngày đã định dạng
+      date: formattedDate,
       fromTableDetails: true,
+      restaurantName: table.restaurantName,
     };
 
-    // Hiển thị thông tin mục giỏ hàng trong console
     console.log('Thêm vào giỏ hàng:', cartItem);
-
     addToCart(cartItem);
     console.log(`Đã thêm ${table.name} vào giỏ hàng. Tổng: ${formatPrice(totalPrice)} VNĐ`);
   };

@@ -48,7 +48,7 @@ export default function SignUpScreen({ navigation }) {
                     })
                     .then(() => {
                         console.log('Người dùng đã đăng ký và dữ liệu đã được lưu!');
-                        navigation.navigate('RootClientTabs');
+                        navigation.navigate('SignInScreen');
                     })
                     .catch(error => {
                         Alert.alert('Error', 'Đăng ký thành công nhưng không thể lưu dữ liệu người dùng');
@@ -75,24 +75,27 @@ export default function SignUpScreen({ navigation }) {
                 <TouchableOpacity onPress={() => navigation.navigate('SignInWelcomeScreen')}>
                     <Icon name="arrow-back" size={24} color="white" />
                 </TouchableOpacity>
-                <Text style={styles.headerText}>CREATE ACCOUNT</Text>
+                <Text style={styles.headerText}>Tạo tài khoản</Text>
             </View>
 
             <View style={styles.content}>
-                <Text style={styles.title}>Sign-Up</Text>
-                <Text style={styles.subtitle}>Please enter your email and create a password</Text>
+                <Text style={styles.title}>Đăng ký</Text>
+                <Text style={styles.subtitle}>Vui lòng nhập email và tạo mật khẩu</Text>
 
+                <Text style={styles.inputLabel}>Email</Text>
                 <TextInput
                     style={styles.input}
-                    placeholder="Email"
+                    placeholder="Nhập địa chỉ email"
                     value={email}
                     onChangeText={setEmail}
                     keyboardType="email-address"
                 />
+
+                <Text style={styles.inputLabel}>Mật khẩu</Text>
                 <View style={styles.passwordContainer}>
                     <TextInput
                         style={styles.passwordInput}
-                        placeholder="Password"
+                        placeholder="Nhập mật khẩu"
                         value={password}
                         onChangeText={setPassword}
                         secureTextEntry={!showPassword}
@@ -101,16 +104,18 @@ export default function SignUpScreen({ navigation }) {
                         <Icon name={showPassword ? "visibility" : "visibility-off"} size={24} color={colors.grey3} style={styles.eyeIcon} />
                     </TouchableOpacity>
                 </View>
+
+                <Text style={styles.inputLabel}>Xác nhận mật khẩu</Text>
                 <TextInput
                     style={styles.input}
-                    placeholder="Confirm Password"
+                    placeholder="Nhập lại mật khẩu"
                     value={confirmPassword}
                     onChangeText={setConfirmPassword}
                     secureTextEntry={!showPassword}
                 />
 
                 <TouchableOpacity style={styles.signUpButton} onPress={handleSignUp}>
-                    <Text style={styles.signUpText}>SIGN UP</Text>
+                    <Text style={styles.signUpText}>Đăng ký</Text>
                 </TouchableOpacity>
             </View>
         </SafeAreaView>
@@ -126,57 +131,84 @@ const styles = StyleSheet.create({
         flexDirection: 'row', 
         alignItems: 'center', 
         padding: 16, 
-        backgroundColor: colors.buttons 
+        backgroundColor: colors.buttons,
+        elevation: 3,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
     },
     headerText: { 
         marginLeft: 20, 
-        fontSize: 18, 
+        fontSize: 20, 
         color: 'white', 
         fontWeight: 'bold' 
     },
     content: { 
-        padding: 20 
+        padding: 24,
+        paddingTop: 30
     },
     title: { 
-        fontSize: 24, 
+        fontSize: 28, 
         fontWeight: 'bold', 
-        marginBottom: 10 
+        marginBottom: 12,
+        color: colors.buttons
     },
     subtitle: { 
         color: colors.grey3, 
-        marginBottom: 20 
+        marginBottom: 30,
+        fontSize: 15,
+        lineHeight: 22
+    },
+    inputLabel: {
+        fontSize: 16,
+        color: colors.grey2,
+        marginBottom: 8,
+        fontWeight: '500'
     },
     input: { 
-        borderWidth: 1, 
+        borderWidth: 1.5, 
         borderColor: colors.grey4, 
-        borderRadius: 5, 
-        padding: 10, 
-        marginBottom: 15 
+        borderRadius: 10, 
+        padding: 12,
+        marginBottom: 20,
+        fontSize: 16,
+        backgroundColor: '#fafafa'
     },
     passwordContainer: { 
         flexDirection: 'row', 
         alignItems: 'center', 
-        borderWidth: 1, 
+        borderWidth: 1.5, 
         borderColor: colors.grey4, 
-        borderRadius: 5, 
-        marginBottom: 15 
+        borderRadius: 10, 
+        marginBottom: 20,
+        backgroundColor: '#fafafa'
     },
     passwordInput: { 
         flex: 1, 
-        padding: 10 
+        padding: 12,
+        fontSize: 16
     },
     eyeIcon: { 
-        padding: 10 
+        padding: 12,
+        marginRight: 5
     },
     signUpButton: { 
         backgroundColor: colors.buttons, 
         padding: 15, 
-        borderRadius: 5, 
-        alignItems: 'center', 
-        marginBottom: 15 
+        borderRadius: 10, 
+        alignItems: 'center',
+        marginTop: 10,
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
     },
     signUpText: { 
         color: 'white', 
-        fontWeight: 'bold' 
+        fontWeight: 'bold',
+        fontSize: 16,
+        textTransform: 'uppercase'
     }
 });

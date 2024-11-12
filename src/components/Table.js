@@ -5,7 +5,7 @@ import { useNavigation } from '@react-navigation/native'; // Import useNavigatio
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
-export default function Table({ restaurantId }) {
+export default function Table({ restaurantId, restaurantName }) {
     const [tables, setTables] = useState([]);
     const navigation = useNavigation(); // Sử dụng useNavigation
 
@@ -21,6 +21,10 @@ export default function Table({ restaurantId }) {
                     id: doc.id,
                     ...doc.data()
                 }));
+
+                // Sắp xếp theo tên
+                tablesList.sort((a, b) => a.name.localeCompare(b.name));
+
                 setTables(tablesList);
             } catch (error) {
                 console.error('Error fetching tables:', error);
@@ -36,7 +40,8 @@ export default function Table({ restaurantId }) {
             onPress={() => navigation.navigate('TableDetail', { 
                 table: {
                     ...item,
-                    restaurantId: restaurantId // Đảm bảo restaurantId được truyền
+                    restaurantId: restaurantId,
+                    restaurantName: restaurantName
                 }
             })}
         >

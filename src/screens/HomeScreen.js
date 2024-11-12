@@ -49,7 +49,10 @@ export default function HomeScreen() {
                     };
                 });
 
-                setRestaurantsData(restaurantsList);
+                const sortedRestaurants = restaurantsList.sort((a, b) => 
+                    a.restaurantName.localeCompare(b.restaurantName, 'vi')
+                );
+                setRestaurantsData(sortedRestaurants);
 
                 const menuCollection = await firestore().collection('menu').get();
                 const menuList = menuCollection.docs.map(doc => ({
@@ -185,7 +188,7 @@ export default function HomeScreen() {
                 </View>
                 
                 <View style={styles.headerTextView}>
-                    <Text style={styles.headerText}>Nhà hàng gần bạn</Text>
+                    <Text style={styles.headerText}>Nhà hàng</Text>
                 </View>
                 
                 <View style={{ width: SCREEN_WIDTH, paddingTop: 10 }}>
@@ -211,7 +214,7 @@ export default function HomeScreen() {
 
             </ScrollView>
             <View style={styles.floatButton}>
-                <TouchableOpacity onPress={() => navigation.navigate('RestaurantsMap')}>
+                <TouchableOpacity onPress={() => navigation.navigate('RestaurantsMapScreen')}>
                     <Icon type="material-community" name="map-marker" color={colors.buttons} size={25} />
                     <Text style={{ fontSize: 14, fontWeight: "bold", color: colors.buttons }}>Map</Text>
                 </TouchableOpacity>

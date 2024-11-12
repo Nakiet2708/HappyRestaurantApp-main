@@ -3,9 +3,10 @@ import { createStackNavigator, TransitionPresets } from '@react-navigation/stack
 import SignInWelcomeScreen from '../screens/authScreens/SignInWelcome';
 import SignInScreen from '../screens/authScreens/SignInScreen';
 import SignUpScreen from '../screens/authScreens/SignUpScreen';
+import ForgotPasswordScreen from '../screens/authScreens/ForgotPasswordScreen'
 import RootClientTabs from './ClientTabs';
 import DrawerNavigator from './DrawerNavigator';
-import RestaurantsMapScreen from '../screens/RestaurantsMapScreens';
+import RestaurantsMapScreen from '../screens/RestaurantsMapScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ActivityIndicator, View } from 'react-native';
 
@@ -52,6 +53,14 @@ export default function AuthNavigator() {
             <Auth.Screen
                 name="SignUpScreen"
                 component={SignUpScreen}
+                options={{
+                    headerShown: false,
+                    ...TransitionPresets.RevealFromBottomAndroid
+                }}
+            />
+            <Auth.Screen
+                name="ForgotPasswordScreen"
+                component={ForgotPasswordScreen}
                 options={{
                     headerShown: false,
                     ...TransitionPresets.RevealFromBottomAndroid

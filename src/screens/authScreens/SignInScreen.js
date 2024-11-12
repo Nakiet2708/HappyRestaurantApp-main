@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, Alert, Image } from 'react-native';
 import { colors } from "../../global/styles";
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import auth from '@react-native-firebase/auth';
@@ -53,9 +53,12 @@ export default function SignInScreen({ navigation }) {
             </View>
 
             <View style={styles.content}>
-                <Text style={styles.title}>Sign-In</Text>
-                <Text style={styles.subtitle}>Please enter the email and password registered with your account</Text>
+                <Image 
+                    source={require('../../../assets/Image/logo.png')}
+                    style={styles.logo}
+                />
 
+                <Text style={styles.inputLabel}>Tài khoản:</Text>
                 <TextInput
                     style={styles.input}
                     placeholder="Email"
@@ -63,6 +66,7 @@ export default function SignInScreen({ navigation }) {
                     onChangeText={setEmail}
                     keyboardType="email-address"
                 />
+                <Text style={styles.inputLabel}>Mật khẩu:</Text>
                 <View style={styles.passwordContainer}>
                     <TextInput
                         style={styles.passwordInput}
@@ -77,27 +81,18 @@ export default function SignInScreen({ navigation }) {
                 </View>
 
                 <TouchableOpacity style={styles.signInButton} onPress={handleSignIn}>
-                    <Text style={styles.signInText}>SIGN IN</Text>
+                    <Text style={styles.signInText}>Đăng Nhập</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity onPress={() => console.log('Forgot Password pressed')}>
-                    <Text style={styles.forgotPassword}>Forgot Password?</Text>
+                <TouchableOpacity onPress={() => navigation.navigate('ForgotPasswordScreen')}>
+                    <Text style={styles.forgotPassword}>Quên mật khẩu?</Text>
                 </TouchableOpacity>
 
-                <Text style={styles.orText}>OR</Text>
-
-                <TouchableOpacity style={[styles.socialButton, styles.facebookButton]} onPress={() => console.log('Facebook Sign In pressed')}>
-                    <Text style={styles.socialButtonText}>Sign In With Facebook</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={[styles.socialButton, styles.googleButton]} onPress={() => console.log('Google Sign In pressed')}>
-                    <Text style={styles.socialButtonText}>Sign In With Google</Text>
-                </TouchableOpacity>
 
                 <View style={styles.createAccountContainer}>
-                    <Text style={styles.newAccountText}>Restaurant Happy</Text>
+                    <Text style={styles.newAccountText}>Nhà hàng Happy</Text>
                     <TouchableOpacity onPress={() => navigation.navigate('SignUpScreen')}>
-                        <Text style={styles.createAccountText}>Create an account</Text>
+                        <Text style={styles.createAccountText}>Tạo tài khoản</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -169,40 +164,34 @@ const styles = StyleSheet.create({
     },
     forgotPassword: { 
         color: colors.grey3, 
+        fontSize: 16,
         textAlign: 'center', 
-        marginBottom: 20 
-    },
-    orText: { 
-        textAlign: 'center', 
-        marginVertical: 20, 
-        color: colors.grey3 
-    },
-    socialButton: { 
-        padding: 15, 
-        borderRadius: 5, 
-        alignItems: 'center', 
-        marginBottom: 15 
-    },
-    facebookButton: { 
-        backgroundColor: '#3b5998' 
-    },
-    googleButton: { 
-        backgroundColor: '#dd4b39' 
-    },
-    socialButtonText: { 
-        color: 'white', 
-        fontWeight: 'bold' 
+        marginBottom: 5, 
     },
     createAccountContainer: { 
         flexDirection: 'row', 
         justifyContent: 'center', 
-        marginTop: 20 
+        marginTop: 5, 
     },
     newAccountText: { 
-        color: colors.grey3 
+        color: colors.grey3,
+        fontSize: 16,
     },
     createAccountText: { 
         color: colors.buttons, 
-        marginLeft: 5 
-    }
+        marginLeft: 5,
+        fontSize: 16,
+    },
+    logo: {
+        width: 220,
+        height: 220,
+        marginBottom: 20,
+        alignSelf: 'center',
+    },
+    inputLabel: {
+        fontSize: 16,
+        color: colors.grey3,
+        marginBottom: 5,
+        marginLeft: 2,
+    },
 });

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, PermissionsAndroid, Platform, Alert, TextInput, Button, Image, TouchableOpacity, Text } from 'react-native';
+import { View, PermissionsAndroid, Platform, Alert, TextInput, Button, Image, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import Geolocation from '@react-native-community/geolocation';
 import firestore from '@react-native-firebase/firestore';
@@ -17,45 +17,93 @@ const RestaurantsMapScreen = () => {
   const [addressSuggestions, setAddressSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const route = useRoute();
+  const [isNavigating, setIsNavigating] = useState(false);
+  const watchId = useRef(null);
 
   // Thêm hằng số cho khoảng cách tối đa (đơn vị: km)
   const MAX_DISTANCE = 100; // Có thể điều chỉnh số này theo nhu cầu
 
-  useEffect(() => {
-    const requestLocationPermission = async () => {
-      if (Platform.OS === 'android') {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          {
-            title: 'Permission to access location',
-            message: 'We need your location to show it on the map.',
-            buttonNeutral: 'Ask Me Later',
-            buttonNegative: 'Cancel',
-            buttonPositive: 'OK',
-          }
-        );
-        if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-          getCurrentPosition();
-        } else {
-          Alert.alert('Location permission denied');
-        }
-      } else {
-        getCurrentPosition(); // iOS automatically handles permissions
+  // Gộp 2 hàm lấy vị trí thành một
+  const getCurrentPosition = (showLoading = false) => {
+    return new Promise((resolve, reject) => {
+      if (showLoading) {
+        Alert.alert('Thông báo', 'Đang lấy vị trí của bạn...');
       }
-    };
 
-    const getCurrentPosition = () => {
+      // Luôn lấy vị trí mới khi bấm nút
+      const locationOptions = {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0, // Đặt thành 0 để không sử dụng cache
+      };
+
       Geolocation.getCurrentPosition(
         (position) => {
+          console.log('Lấy vị trí mới:', position);
           const { latitude, longitude } = position.coords;
           setCurrentPosition({ latitude, longitude });
+          resolve(position);
         },
         (error) => {
-          console.log(error);
-          Alert.alert('Error', 'Unable to retrieve location. Please try again.');
+          // Nếu lỗi, thử lại với độ chính xác thấp
+          Geolocation.getCurrentPosition(
+            (position) => {
+              console.log('Lấy vị trí (độ chính xác thấp):', position);
+              const { latitude, longitude } = position.coords;
+              setCurrentPosition({ latitude, longitude });
+              resolve(position);
+            },
+            (secondError) => {
+              console.error('Lỗi lấy vị trí:', secondError);
+              reject(secondError);
+            },
+            {
+              enableHighAccuracy: false,
+              timeout: 10000,
+              maximumAge: 0,
+            }
+          );
         },
-        { enableHighAccuracy: true, timeout: 20000, maximumAge: 1000 }
+        locationOptions
       );
+    });
+  };
+
+  useEffect(() => {
+    const requestLocationPermission = async () => {
+      try {
+        if (Platform.OS === 'android') {
+          const granted = await PermissionsAndroid.requestMultiple([
+            PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+            PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
+          ]);
+
+          if (
+            granted['android.permission.ACCESS_FINE_LOCATION'] === PermissionsAndroid.RESULTS.GRANTED &&
+            granted['android.permission.ACCESS_COARSE_LOCATION'] === PermissionsAndroid.RESULTS.GRANTED
+          ) {
+            console.log('Đã được cấp quyền vị trí');
+            await getCurrentPosition();
+          } else {
+            console.log('Quyền vị trí bị từ chối');
+            Alert.alert(
+              'Quyền truy cập vị trí',
+              'Ứng dụng cần quyền truy cập vị trí để hoạt động.',
+              [
+                {
+                  text: 'Đi tới Cài đặt',
+                  onPress: () => Linking.openSettings(),
+                },
+                { text: 'Hủy', style: 'cancel' },
+              ]
+            );
+          }
+        } else {
+          await getCurrentPosition();
+        }
+      } catch (err) {
+        console.warn(err);
+      }
     };
 
     requestLocationPermission();
@@ -342,6 +390,89 @@ const RestaurantsMapScreen = () => {
     }
   };
 
+  // Thêm hàm để theo dõi vị trí
+  const startNavigation = () => {
+    if (!destination) {
+      Alert.alert('Thông báo', 'Vui lòng chọn điểm đến trước khi bắt đầu dẫn đường');
+      return;
+    }
+
+    setIsNavigating(true);
+
+    // Cấu hình theo dõi vị trí
+    const watchOptions = {
+      enableHighAccuracy: true,
+      distanceFilter: 10, // Cập nhật khi di chuyển 10m
+      timeout: 20000,
+      maximumAge: 1000, // Chỉ sử dụng vị trí trong vòng 1 giây
+    };
+
+    watchId.current = Geolocation.watchPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          const newPosition = { latitude, longitude };
+          
+          console.log('Vị trí mới trong navigation:', newPosition);
+          setCurrentPosition(newPosition);
+
+          // Cập nhật đường đi từ vị trí mới đến điểm đến
+          const newRoute = await getRouteFromGeoapify(newPosition, destination);
+          if (newRoute && newRoute.length > 0) {
+            setRouteCoordinates(newRoute);
+            
+            // Tính khoảng cách đến đích
+            const distanceToDestination = calculateDistance(
+              latitude,
+              longitude,
+              destination.latitude,
+              destination.longitude
+            );
+
+            // Nếu đến gần đích (ví dụ: trong phạm vi 50m)
+            if (distanceToDestination <= 0.05) {
+              Alert.alert('Thông báo', 'Bạn đã đến nơi!');
+              stopNavigation();
+            }
+          }
+        } catch (error) {
+          console.error('Lỗi khi cập nhật đường đi:', error);
+          // Không dừng navigation khi gặp lỗi, chỉ thông báo
+          Alert.alert('Thông báo', 'Đang cập nhật lại đường đi...');
+        }
+      },
+      (error) => {
+        console.error('Lỗi theo dõi vị trí:', error);
+        Alert.alert(
+          'Lỗi',
+          'Không thể theo dõi vị trí. Vui lòng kiểm tra:\n' +
+          '- GPS đã được bật\n' +
+          '- Đã cấp quyền vị trí cho ứng dụng'
+        );
+        stopNavigation();
+      },
+      watchOptions
+    );
+  };
+
+  // Thêm hàm dừng dẫn đường
+  const stopNavigation = () => {
+    if (watchId.current) {
+      Geolocation.clearWatch(watchId.current);
+      watchId.current = null;
+    }
+    setIsNavigating(false);
+  };
+
+  // Cleanup khi component unmount
+  useEffect(() => {
+    return () => {
+      if (watchId.current) {
+        Geolocation.clearWatch(watchId.current);
+      }
+    };
+  }, []);
+
   return (
     <View style={{ 
       flex: 1,
@@ -391,79 +522,79 @@ const RestaurantsMapScreen = () => {
         <Button
           title="Lấy vị trí hiện tại"
           onPress={async () => {
-            Geolocation.getCurrentPosition(
-              async (position) => {
-                const { latitude, longitude } = position.coords;
-                const currentCoordinate = { latitude, longitude };
-                setCurrentPosition(currentCoordinate);
+            try {
+              const position = await getCurrentPosition(true);
+              const { latitude, longitude } = position.coords;
+              const currentCoordinate = { latitude, longitude };
 
-                // Tìm cơ sở gần nhất
-                let nearestStore = null;
-                let shortestDistance = Infinity;
+              // Tìm cơ sở gần nhất
+              let nearestStore = null;
+              let shortestDistance = Infinity;
+              
+              storeLocations.forEach(store => {
+                const distance = calculateDistance(
+                  latitude,
+                  longitude,
+                  parseFloat(store.latitude),
+                  parseFloat(store.longitude)
+                );
                 
-                storeLocations.forEach(store => {
-                  const distance = calculateDistance(
-                    latitude,
-                    longitude,
-                    parseFloat(store.latitude),
-                    parseFloat(store.longitude)
-                  );
-                  
-                  if (distance < shortestDistance) {
-                    shortestDistance = distance;
-                    nearestStore = store;
-                  }
-                });
+                if (distance < shortestDistance) {
+                  shortestDistance = distance;
+                  nearestStore = store;
+                }
+              });
 
-                if (nearestStore) {
-                  const storeCoordinate = {
-                    latitude: parseFloat(nearestStore.latitude),
-                    longitude: parseFloat(nearestStore.longitude)
-                  };
-                  setDestination(storeCoordinate);
-                  
-                  // Lấy và vẽ đường đi
-                  const route = await getRouteFromGeoapify(currentCoordinate, storeCoordinate);
+              if (nearestStore) {
+                const storeCoordinate = {
+                  latitude: parseFloat(nearestStore.latitude),
+                  longitude: parseFloat(nearestStore.longitude)
+                };
+                setDestination(storeCoordinate);
+                
+                const route = await getRouteFromGeoapify(currentCoordinate, storeCoordinate);
+                if (route) {
                   setRouteCoordinates(route);
-                  
-                  // Hiển thị thông tin
                   Alert.alert(
                     'Cơ sở gần nhất',
                     `${nearestStore.restaurantName}\n${nearestStore.businessAddress}\nKhoảng cách: ${shortestDistance.toFixed(2)} km`
                   );
                 }
+              }
 
-                // Chuyển đổi tọa độ thành địa chỉ cho điểm xuất phát
-                try {
-                  const response = await fetch(
-                    `https://api.geoapify.com/v1/geocode/reverse?lat=${latitude}&lon=${longitude}&apiKey=${GEOAPIFY_API_KEY}&lang=vi`
-                  );
-                  const data = await response.json();
+              // Lấy địa chỉ
+              try {
+                const response = await fetch(
+                  `https://api.geoapify.com/v1/geocode/reverse?lat=${latitude}&lon=${longitude}&apiKey=${GEOAPIFY_API_KEY}&lang=vi`
+                );
+                const data = await response.json();
+                
+                if (data.features && data.features.length > 0) {
+                  const addressData = data.features[0].properties;
+                  const formattedAddress = [
+                    addressData.housenumber,
+                    addressData.street,
+                    addressData.district,
+                    addressData.city,
+                    addressData.country
+                  ].filter(Boolean).join(', ');
                   
-                  if (data.features && data.features.length > 0) {
-                    const addressData = data.features[0].properties;
-                    // Tạo địa chỉ đầy đủ từ dữ liệu
-                    const formattedAddress = [
-                      addressData.housenumber,
-                      addressData.street,
-                      addressData.district,
-                      addressData.city,
-                      addressData.country
-                    ].filter(Boolean).join(', ');
-                    
-                    setAddress(formattedAddress); // Cập nhật ô nhập địa chỉ
-                  }
-                } catch (error) {
-                  console.log(error);
-                  Alert.alert('Error', 'Không thể lấy địa chỉ. Vui lòng thử lại.');
+                  setAddress(formattedAddress);
                 }
-              },
-              (error) => {
-                console.log(error);
-                Alert.alert('Error', 'Không thể lấy vị trí. Vui lòng thử lại.');
-              },
-              { enableHighAccuracy: true, timeout: 20000, maximumAge: 1000 }
-            );
+              } catch (error) {
+                console.error('Lỗi khi lấy địa chỉ:', error);
+                Alert.alert('Lỗi', 'Không thể lấy địa chỉ. Vui lòng thử lại.');
+              }
+            } catch (error) {
+              console.error('Lỗi khi xử lý vị trí:', error);
+              Alert.alert(
+                'Lỗi',
+                'Không thể lấy vị trí. Vui lòng kiểm tra:\n' +
+                '- GPS đã được bật\n' +
+                '- Đã cấp quyền vị trí cho ứng dụng\n' +
+                '- Có kết nối internet'
+              );
+            }
           }}
         />
       </View>
@@ -519,18 +650,52 @@ const RestaurantsMapScreen = () => {
         ))}
       </MapView>
 
-      {/* Thêm nút xác nhận ở dưới */}
-      <View style={{
-        position: 'absolute',
-        bottom: 20,
-        left: 20,
-        right: 20,
-      }}>
-        
+      {/* Thêm nút dẫn đường ở cuối */}
+      <View style={styles.navigationButtonContainer}>
+        {destination && (
+          <TouchableOpacity
+            style={[
+              styles.navigationButton,
+              { backgroundColor: isNavigating ? '#ff4444' : '#4CAF50' }
+            ]}
+            onPress={() => {
+              if (isNavigating) {
+                stopNavigation();
+              } else {
+                startNavigation();
+              }
+            }}
+          >
+            <Text style={styles.navigationButtonText}>
+              {isNavigating ? 'Dừng dẫn đường' : 'Bắt đầu dẫn đường'}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
 };
+
+// Thêm styles cho nút dẫn đường
+const styles = StyleSheet.create({
+  navigationButtonContainer: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+  },
+  navigationButton: {
+    backgroundColor: '#4CAF50',
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  navigationButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+});
 
 
 export default RestaurantsMapScreen;

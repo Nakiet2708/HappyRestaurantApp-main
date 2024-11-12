@@ -35,7 +35,7 @@ export default function HomeHeader() {
         <View style={styles.header}>
             <View style={{ alignItems: "center", justifyContent: "center", marginLeft: 15 }}>
                 <Image
-                    source={{ uri: userImage || 'https://vivureviews.com/wp-content/uploads/2022/08/avatar-vo-danh-10.png' }}
+                    source={userImage ? { uri: userImage } : require('../../assets/Image/avatar-vo-danh.png')}
                     style={styles.userImage}
                 />
             </View>

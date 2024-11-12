@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Image, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
+import { View, Text, Image, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, Alert } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import { colors } from '../global/styles';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -8,6 +8,7 @@ import CheckBox from '@react-native-community/checkbox';
 import { useContext } from 'react';
 import { useCart } from '../contexts/CartContext'; // Ensure correct import
 import CartButton from '../components/CartButton';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const formatPrice = (price) => {
   return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
@@ -21,6 +22,8 @@ export default function ProductDetails({ route }) {
   const [quantity, setQuantity] = useState(1);
   const navigation = useNavigation(); 
   const { addToCart } = useCart(); // Use the custom hook
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
     const fetchOptions = async () => {
@@ -63,6 +66,41 @@ export default function ProductDetails({ route }) {
 
     fetchOptions();
   }, [product.id, product.categoryId]);
+
+  // Lấy thông tin user từ AsyncStorage
+  useEffect(() => {
+    const getUserData = async () => {
+      try {
+        const userData = await AsyncStorage.getItem('user');
+        if (userData) {
+          setCurrentUser(JSON.parse(userData));
+        }
+      } catch (error) {
+        console.error('Error getting user data:', error);
+      }
+    };
+    getUserData();
+  }, []);
+
+  // Kiểm tra sản phẩm yêu thích
+  useEffect(() => {
+    const checkFavorite = async () => {
+      if (currentUser) {
+        const userDoc = await firestore()
+          .collection('USERS')
+          .doc(currentUser.email)
+          .get();
+        
+        const favoriteProducts = userDoc.data()?.FavoriteProducts || [];
+        const isProductFavorite = favoriteProducts.some(
+          item => item.productId === product.id && item.categoryId === product.categoryId
+        );
+        setIsFavorite(isProductFavorite);
+      }
+    };
+
+    checkFavorite();
+  }, [currentUser, product.id, product.categoryId]);
 
   const toggleOption = (optionId) => {
     setSelectedOptions(prevState => {
@@ -119,6 +157,48 @@ export default function ProductDetails({ route }) {
     addToCart(cartItem);
   };
 
+  // Xử lý toggle yêu thích
+  const toggleFavorite = async () => {
+    try {
+        console.log('Start toggle favorite');
+        console.log('Current user:', currentUser);
+        console.log('Product:', product);
+        
+        // Sử dụng email của user hiện tại làm document ID
+        const userRef = firestore().collection('USERS').doc(currentUser.email);
+        console.log('User ref created');
+        
+        const userDoc = await userRef.get();
+        console.log('User doc fetched:', userDoc.exists);
+        
+        const favoriteProducts = userDoc.data()?.FavoriteProducts || [];
+        console.log('Current favorites:', favoriteProducts);
+        
+        if (isFavorite) {
+            // Xóa khỏi danh sách yêu thích
+            const newFavorites = favoriteProducts.filter(
+                item => !(item.productId === product.id && item.categoryId === product.categoryId)
+            );
+            await userRef.update({ FavoriteProducts: newFavorites });
+        } else {
+            // Thêm vào danh sách yêu thích
+            const newFavorite = {
+                productId: product.id,
+                categoryId: product.categoryId,
+                addedAt: new Date().toISOString()
+            };
+            await userRef.set({ 
+                FavoriteProducts: [...favoriteProducts, newFavorite] 
+            }, { merge: true });
+        }
+        
+        setIsFavorite(!isFavorite);
+    } catch (error) {
+        console.error('Detailed error:', error);
+        Alert.alert('Lỗi', 'Không thể cập nhật danh sách yêu thích');
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>   
       <CartButton />
@@ -137,11 +217,27 @@ export default function ProductDetails({ route }) {
         
         <Image source={{ uri: product.image }} style={styles.image} />
         <View style={styles.infoContainer}>
-          <Text style={styles.name}>{product.name}</Text>
+          <View style={styles.titleContainer}>
+            <Text style={styles.name}>{product.name}</Text>
+            <TouchableOpacity
+              onPress={(event) => {
+                event.stopPropagation();
+                toggleFavorite();
+              }}
+              style={styles.favoriteButton}
+            >
+              <Icon
+                name={isFavorite ? "favorite" : "favorite-border"}
+                size={30}
+                color={isFavorite ? "red" : colors.black}
+              />
+            </TouchableOpacity>
+          </View>
+
           <Text style={styles.description}>{product.describe}</Text>
           
           <View style={styles.headerTextView}>
-            <Text style={styles.optionsTitle}>Choose your options:</Text>
+            <Text style={styles.optionsTitle}>Các tùy chọn:</Text>
           </View>
           {options.length > 0 ? (
             options.map(option => (
@@ -157,9 +253,9 @@ export default function ProductDetails({ route }) {
               </View>
             ))
           ) : (
-            <Text>No options available for this product.</Text>
+            <Text>Không có tùy chọn nào cho món này.</Text>
           )}
-
+  
           <Text style={styles.totalPrice}>
           Tổng tiền: {formatPrice(calculateTotalPrice())} VNĐ
           </Text>
@@ -182,7 +278,7 @@ export default function ProductDetails({ route }) {
             onPress={addToCartHandler}
           >
             <Text style={styles.addToCartButtonText}>
-              Thêm {quantity} {product.name} vào giỏ hàng 
+              Thêm {quantity} món vào giỏ hàng 
             </Text>
           </TouchableOpacity>
         </View>
@@ -301,10 +397,24 @@ const styles = StyleSheet.create({
   },
   backButton: {
     position: 'absolute',
-    top: 20,
+    top: 0,
     left: 10,
     zIndex: 1,
     backgroundColor: colors.white,
     borderRadius: 90
+  },
+  favoriteButton: {
+    position: 'absolute',
+    top: 0,
+    right: 10,
+    zIndex: 1,
+    backgroundColor: colors.white,
+    borderRadius: 90,
+    padding: 8,
+  },
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
 });

@@ -2,6 +2,9 @@ import React from 'react';
 import { View, StyleSheet, StatusBar } from 'react-native';
 import { colors } from './src/global/styles';
 import RootNavigator from './src/navigation/RootNavigatior';
+import { LogBox } from 'react-native';
+
+LogBox.ignoreLogs(['ReactImageView: Image source "null"']);
 
 export default function App() {
     return (

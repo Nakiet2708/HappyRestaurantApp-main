@@ -66,7 +66,10 @@ export default function RestaurantScreen({ route }) {
             case 'Đặt bàn':
                 return (
                     <View style={{ flex: 1 }}>
-                            <Table restaurantId={restaurantId} />
+                        <Table 
+                            restaurantId={restaurantId} 
+                            restaurantName={restaurantData.restaurantName}
+                        />
                     </View>
                 );
             case 'Đánh giá':

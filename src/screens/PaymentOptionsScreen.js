@@ -73,11 +73,11 @@ export default function PaymentOptionsScreen({ navigation, route }) {
   const paymentMethods = [
     {
       name: 'ZaloPay',
-      logo: require('C:/Luu/DOAN-TotNghiep/HappyRestaurantApp-main/assets/Image/zalopay.png'),
+      logo: require('../../assets/Image/zalopay.png'),
     },
     {
       name: 'MoMo',
-      logo: require('C:/Luu/DOAN-TotNghiep/HappyRestaurantApp-main/assets/Image/momo.png'),
+      logo: require('../../assets/Image/momo.png'),
     },
   ];
 
@@ -93,7 +93,7 @@ export default function PaymentOptionsScreen({ navigation, route }) {
         const userDoc = await firestore().collection('USERS').doc(user.email).get();
         
         if (userDoc.exists) {
-          const { username, phone } = userDoc.data();
+          const { username, phone ,address, latitude, longitude} = userDoc.data();
           
           const dateTime = new Date();
           const tableItems = cartItems.filter(item => item.fromTableDetails);
@@ -107,6 +107,9 @@ export default function PaymentOptionsScreen({ navigation, route }) {
             phone,
             tableItems,
             otherItems,
+            address,
+            latitude,
+            longitude,
             status,
             totalPrice, 
           };
@@ -184,22 +187,15 @@ export default function PaymentOptionsScreen({ navigation, route }) {
       const responseData = await response.json();
       console.log('Response Data:', responseData);
 
-      // Hiển thị thông báo với nút "Kiểm tra trạng thái thanh toán" ngay khi bấm nút
-      Alert.alert(
-        'Thông báo',
-        'Bạn đã sẵn sàng để thanh toán. Vui lòng kiểm tra trạng thái thanh toán sau khi bạn thanh toán.',
-        [
-          {
-            text: 'Kiểm tra trạng thái thanh toán',
-            onPress: checkZaloPayStatus,
-          },
-        ],
-        { cancelable: true }
-      );
-
       if (responseData.return_code === 1) {
-        console.log('Payment URL:', responseData.order_url);
-        setLastTransactionId(app_trans_id);
+        // Lưu toàn bộ thông tin giao dịch
+        const transactionInfo = {
+          app_trans_id: app_trans_id,
+          zp_trans_token: responseData.zp_trans_token,
+          mac: order.mac
+        };
+        await AsyncStorage.setItem('transaction_info', JSON.stringify(transactionInfo));
+        
         if (responseData.order_url) {
           try {
             if (await InAppBrowser.isAvailable()) {
@@ -226,18 +222,17 @@ export default function PaymentOptionsScreen({ navigation, route }) {
           console.log('Error', 'Payment URL not provided');
         }
 
-        // Hiển thị thông báo với nút "Kiểm tra trạng thái thanh toán"
+        // Hiển thị thông báo với nút kiểm tra
         Alert.alert(
           'Thông báo',
-          'Bạn đã sẵn sàng để thanh toán. Vui lòng kiểm tra trạng thái thanh toán sau khi thanh toán.',
+          'Vui lòng hoàn tất thanh toán trên ứng dụng ZaloPay và sau đó kiểm tra trạng thái.',
           [
             {
               text: 'Kiểm tra trạng thái thanh toán',
-              onPress: checkZaloPayStatus,
+              onPress: () => checkZaloPayStatus(5), // Truyền số lần thử tối đa
             },
-            
           ],
-          { cancelable: true }
+          { cancelable: false }
         );
       } else {
         console.log('Error', 'Payment failed!');
@@ -252,44 +247,72 @@ export default function PaymentOptionsScreen({ navigation, route }) {
     }
   };
 
-  const checkZaloPayStatus = async () => {
-
+  const checkZaloPayStatus = async (remainingAttempts = 5) => {
     try {
-      // Thêm thời gian chờ
-      await new Promise(resolve => setTimeout(resolve, 5000)); // Chờ 5 giây
+      if (remainingAttempts <= 0) {
+        Alert.alert(
+          'Thông báo',
+          'Không thể xác nhận trạng thái thanh toán. Vui lòng liên hệ bộ phận hỗ trợ.'
+        );
+        return;
+      }
 
-      const data = `${config.app_id}|${lastTransactionId}|${config.key1}`;
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      const transactionInfoStr = await AsyncStorage.getItem('transaction_info');
+      const transactionInfo = JSON.parse(transactionInfoStr);
+
+      if (!transactionInfo) {
+        throw new Error('Không tìm thấy thông tin giao dịch');
+      }
+
+      const { app_trans_id } = transactionInfo;
+
+      // Tạo chữ ký MAC theo tài liệu ZaloPay
+      const data = config.app_id + "|" + app_trans_id + "|" + config.key1;
       const mac = CryptoJS.HmacSHA256(data, config.key1).toString();
+
+      console.log('Check Status Data:', {
+        app_id: config.app_id,
+        app_trans_id,
+        mac
+      });
 
       const response = await fetch(config.query_endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `app_id=${config.app_id}&app_trans_id=${lastTransactionId}&mac=${mac}`,
+        headers: { 
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams({
+          app_id: config.app_id,
+          app_trans_id: app_trans_id,
+          mac: mac
+        }).toString()
       });
 
       const result = await response.json();
+      console.log('ZaloPay Status Response:', result);
 
       let statusMessage = '';
-      switch(result.return_code) {
-        case 1:
+      if (result.return_code === 1 || result.return_code === '1') {
           statusMessage = 'Thanh toán thành công';
           await handlePaymentSuccess();
           setCartItems([]);
           navigation.goBack();
-          break;
-        case 2:
+      } else if (result.return_code === 3 || result.return_code === '3') {
+          statusMessage = 'Giao dịch đang xử lý. Vui lòng đợi...';
+          setTimeout(() => checkZaloPayStatus(remainingAttempts - 1), 5000);
+      } else if (result.return_code === 2 || result.return_code === '2') {
           statusMessage = 'Thanh toán thất bại';
-          break;
-        case 3:
-          statusMessage = 'Giao dịch đang chờ xử lý hoặc đang xử lý';
-          break;
-        default:
-          statusMessage = 'Lỗi thanh toán';
+      } else {
+          statusMessage = 'Đang kiểm tra trạng thái thanh toán';
+          setTimeout(() => checkZaloPayStatus(remainingAttempts - 1), 5000);
       }
 
-      Alert.alert('Transaction Status', `${statusMessage}\n\nDetails: ${result.return_message}`);
+      Alert.alert('Trạng thái giao dịch', `${statusMessage}\n\nChi tiết: ${result.return_message}`);
     } catch (error) {
-      console.error('Status Check Error:', error);
+      console.error('Lỗi kiểm tra trạng thái:', error);
+      setTimeout(() => checkZaloPayStatus(remainingAttempts - 1), 5000);
     }
   };
 
@@ -385,6 +408,7 @@ export default function PaymentOptionsScreen({ navigation, route }) {
         <TouchableOpacity
           style={styles.payButton}
           onPress={handlePayment}
+          // onPress={handlePaymentSuccess}
         >
           <Text style={styles.payButtonText}>Thanh toán</Text>
         </TouchableOpacity>

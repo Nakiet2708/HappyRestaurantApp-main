@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Image, StyleSheet, ScrollView, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, Image, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import storage from '@react-native-firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -7,6 +7,7 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import { colors } from '../../global/styles';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Picker } from '@react-native-picker/picker';
+import { useRoute } from '@react-navigation/native';
 
 const DetailAccountScreen = ({ navigation }) => {
   const [userData, setUserData] = useState({
@@ -15,9 +16,13 @@ const DetailAccountScreen = ({ navigation }) => {
     email: '',
     gender: '',
     image: '',
-    address: '', 
+    address: '',
+    latitude: null,
+    longitude: null,
   });
   const [isEditing, setIsEditing] = useState(false);
+  const [isAddressSelected, setIsAddressSelected] = useState(false);
+  const route = useRoute();
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -34,11 +39,40 @@ const DetailAccountScreen = ({ navigation }) => {
     fetchUserData();
   }, []);
 
+  useEffect(() => {
+    if (route.params?.selectedAddress && route.params?.shouldUpdateAddress) {
+      setUserData(prevData => ({
+        ...prevData,
+        address: route.params.selectedAddress,
+        latitude: route.params.latitude,
+        longitude: route.params.longitude,
+      }));
+      setIsAddressSelected(true);
+      navigation.setParams({ 
+        selectedAddress: undefined,
+        shouldUpdateAddress: undefined,
+        latitude: undefined,
+        longitude: undefined,
+      });
+    }
+  }, [route.params?.selectedAddress]);
+
   const handleSave = async () => {
+    if (!userData.username || !userData.phone || !userData.address) {
+      Alert.alert('Lỗi', 'Tên, số điện thoại và địa chỉ không được để trống.');
+      return;
+    }
+
     const userDataFromStorage = await AsyncStorage.getItem('user');
     if (userDataFromStorage) {
       const user = JSON.parse(userDataFromStorage);
-      await firestore().collection('USERS').doc(user.email).set(userData);
+
+      // Lọc ra các trường undefined
+      const filteredUserData = Object.fromEntries(
+        Object.entries(userData).filter(([_, value]) => value !== undefined)
+      );
+
+      await firestore().collection('USERS').doc(user.email).set(filteredUserData);
       setIsEditing(false);
       navigation.reset({
         index: 0,
@@ -85,7 +119,7 @@ const DetailAccountScreen = ({ navigation }) => {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Image
-        source={{ uri: 'https://png.pngtree.com/background/20230526/original/pngtree-an-orange-cityscape-with-3d-buildings-and-a-skyline-picture-image_2752203.jpg' }}
+        source={require('../../../assets/Image/nen.jpg')}
         style={styles.backgroundImage}
       />
       <View style={styles.header}>
@@ -108,7 +142,7 @@ const DetailAccountScreen = ({ navigation }) => {
       <View style={styles.profileContainer}>
         <TouchableOpacity onPress={isEditing ? handleChoosePhoto : null}>
           <Image
-            source={{ uri: userData.image || 'https://vivureviews.com/wp-content/uploads/2022/08/avatar-vo-danh-10.png' }}
+            source={userData.image ? { uri: userData.image } : require('../../../assets/Image/avatar-vo-danh.png')}
             style={styles.avatar}
           />
         </TouchableOpacity>
@@ -134,12 +168,24 @@ const DetailAccountScreen = ({ navigation }) => {
         editable={false} // Khóa trường email lại
       />
       <Text style={styles.label}>Địa chỉ</Text>
-      <TextInput
-        style={styles.value}
-        value={userData.address}
-        editable={isEditing}
-        onChangeText={(text) => setUserData({ ...userData, address: text })}
-      />
+      <View style={styles.addressContainer}>
+        <TextInput
+          style={[styles.value, { flex: 1 }]}
+          value={userData.address}
+          editable={isEditing && isAddressSelected}
+          onChangeText={(text) => setUserData({ ...userData, address: text })}
+        />
+        <TouchableOpacity 
+          style={[styles.mapButton, !isEditing && styles.mapButtonDisabled]}
+          onPress={() => isEditing && navigation.navigate('Map')}
+        >
+          <Icon 
+            name="map" 
+            size={24} 
+            color={isEditing ? colors.buttons : '#ccc'} 
+          />
+        </TouchableOpacity>
+      </View>
       <View >
         <Text style={styles.label}>Giới tính</Text>
         <Picker
@@ -233,6 +279,18 @@ const styles = StyleSheet.create({
     width: '100%',
     marginLeft: 10,
     
+  },
+
+  addressContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: 20,
+  },
+  mapButton: {
+    padding: 10,
+  },
+  mapButtonDisabled: {
+    opacity: 0.5,
   },
 });
 

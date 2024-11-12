@@ -23,33 +23,96 @@ export default function SearchComponent() {
     const handleSearch = async (text) => {
         setSearchText(text);
         if (text) {
+            const searchTerm = text.toLowerCase().trim();
+            console.log('Search term:', searchTerm);
+
             const productsCollection = await firestore().collectionGroup('product').get();
             const filteredProducts = productsCollection.docs
-                .map(doc => ({ id: doc.id, ...doc.data(), categoryId: doc.ref.parent.parent.id })) // Include categoryId
-                .filter(product => product.name.toLowerCase().includes(text.toLowerCase()));
-            setSearchResults(filteredProducts);
+                .map(doc => {
+                    const data = doc.data();
+                    console.log('Product name:', data.name);
+                    return { 
+                        id: doc.id, 
+                        ...data, 
+                        categoryId: doc.ref.parent.parent.id,
+                        type: 'product'
+                    };
+                })
+                .filter(product => {
+                    const productName = product.name.toLowerCase();
+                    const includesSearchTerm = productName.indexOf(searchTerm) !== -1;
+                    console.log(`${productName} includes ${searchTerm}:`, includesSearchTerm);
+                    return includesSearchTerm;
+                });
+
+            const restaurantsCollection = await firestore().collection('restaurants').get();
+            const filteredRestaurants = restaurantsCollection.docs
+                .map(doc => {
+                    const data = doc.data();
+                    console.log('Restaurant name:', data.restaurantName);
+                    return { 
+                        id: doc.id, 
+                        ...data,
+                        type: 'restaurant'
+                    };
+                })
+                .filter(restaurant => {
+                    const restaurantName = restaurant.restaurantName.toLowerCase();
+                    const includesSearchTerm = restaurantName.indexOf(searchTerm) !== -1;
+                    console.log(`${restaurantName} includes ${searchTerm}:`, includesSearchTerm);
+                    return includesSearchTerm;
+                });
+
+            const results = [...filteredProducts, ...filteredRestaurants];
+            console.log('Final results:', results);
+            setSearchResults(results);
         } else {
             setSearchResults([]);
         }
     };
 
-    const renderProductItem = ({ item }) => (
-        <TouchableOpacity 
-            style={styles.productItem}
-            onPress={() => {
-                Keyboard.dismiss();
-                navigation.navigate('ProductDetails', { product: item });
-                setModalVisible(false);
-                setTextInputFossued(true);
-            }}
-        >
-            <View style={styles.productInfo}>
-                <Text style={styles.productName}>{item.name}</Text>
-                <Text style={styles.productPrice}>Giá tiền: {formatPrice(item.price)} VNĐ</Text>
-            </View>
-            <Image source={{ uri: item.image }} style={styles.productImage} />
-        </TouchableOpacity>
-    );
+    const renderItem = ({ item }) => {
+        if (item.type === 'product') {
+            return (
+                <TouchableOpacity 
+                    style={styles.productItem}
+                    onPress={() => {
+                        Keyboard.dismiss();
+                        navigation.navigate('ProductDetails', { product: item });
+                        setModalVisible(false);
+                        setTextInputFossued(true);
+                    }}
+                >
+                    <View style={styles.productInfo}>
+                        <Text style={styles.productName}>{item.name}</Text>
+                        <Text style={styles.productPrice}>Giá tiền: {formatPrice(item.price)} VNĐ</Text>
+                    </View>
+                    <Image 
+                        source={{ uri: item.image }} 
+                        style={styles.productImage}
+                    />
+                </TouchableOpacity>
+            );
+        } else {
+            return (
+                <TouchableOpacity 
+                    style={styles.restaurantItem}
+                    onPress={() => {
+                        Keyboard.dismiss();
+                        navigation.navigate('RestaurantScreen', { restaurantId: item.id });
+                        setModalVisible(false);
+                        setTextInputFossued(true);
+                    }}
+                >
+                    <Text style={styles.restaurantName}>{item.restaurantName}</Text>
+                    <Image 
+                        source={{ uri: item.images }} 
+                        style={styles.restaurantImage}
+                    />
+                </TouchableOpacity>
+            );
+        }
+    };
 
     return (
         <View style={{ alignItems: 'center' }}>
@@ -62,7 +125,7 @@ export default function SearchComponent() {
                         iconStyle={{ marginLeft: 5 }}
                         size={32}
                     />
-                    <Text style={{ fontSize: 15 }}>What are you looking for ?</Text>
+                    <Text style={{ fontSize: 15 }}>Tìm kiếm món ăn hoặc nhà hàng ?</Text>
                 </View>
             </TouchableWithoutFeedback>
             <Modal animationType="fade" transparent={false} visible={modalVisible}>
@@ -109,13 +172,13 @@ export default function SearchComponent() {
                         </View>
                     </View>
                     {searchText ? (
-                        <Text style={styles.searchTitle}>Các món có chữ '{searchText}' là:</Text>
+                        <Text style={styles.searchTitle}>Tìm kiếm '{searchText}' là:</Text>
                     ) : null}
                     <FlatList
                         data={searchResults}
-                        renderItem={renderProductItem}
+                        renderItem={renderItem}
                         keyExtractor={item => item.id}
-                        contentContainerStyle={styles.productsContainer}
+                        contentContainerStyle={styles.resultsContainer}
                     />
                 </View>
             </Modal>
@@ -194,7 +257,7 @@ const styles = StyleSheet.create({
         marginTop: 20,
         marginBottom: 10,
     },
-    productsContainer: {
+    resultsContainer: {
         paddingHorizontal: 15,
     },
     productItem: {
@@ -204,25 +267,51 @@ const styles = StyleSheet.create({
         backgroundColor: 'white',
         borderBottomWidth: 1,
         borderBottomColor: '#e0e0e0',
-        paddingVertical: 15,
+        paddingVertical: 10,
+        paddingHorizontal: 15,
     },
     productInfo: {
         flex: 1,
-        marginRight: 15,
+        marginRight: 10,
     },
     productName: {
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: 'bold',
         marginBottom: 5,
     },
     productPrice: {
-        fontSize: 18,
-        fontWeight: 'bold',
+        fontSize: 16,
         color: 'red',
     },
     productImage: {
-        width: 80,
-        height: 60,
+        width: 70,
+        height: 70,
         borderRadius: 5,
+        backgroundColor: '#f0f0f0',
+    },
+    restaurantItem: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        backgroundColor: 'white',
+        borderBottomWidth: 1,
+        borderBottomColor: '#e0e0e0',
+        paddingVertical: 10,
+        paddingHorizontal: 15,
+    },
+    restaurantInfo: {
+        flex: 1,
+        marginRight: 15,
+    },
+    restaurantName: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        flex: 1,
+    },
+    restaurantImage: {
+        width: 70,
+        height: 70,
+        borderRadius: 5,
+        backgroundColor: '#f0f0f0',
     },
 });

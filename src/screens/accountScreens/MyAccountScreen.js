@@ -1,9 +1,39 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView } from 'react-native';
+import Icon from 'react-native-vector-icons/MaterialIcons';
+import { colors } from '../../global/styles';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import auth from '@react-native-firebase/auth';
-import firestore from '@react-native-firebase/firestore'; // Import Firestore
+import firestore from '@react-native-firebase/firestore';
 import HomeHeader from '../../components/HomeHeader';
+
+const menuItems = [
+    {
+        title: 'Thông Tin Cá Nhân',
+        icon: 'person',
+        screen: 'DetailAccountScreen'
+    },
+    {
+        title: 'Danh mục yêu thích',
+        icon: 'favorite',
+        screen: 'FavoriteProductsScreen'
+    },
+    {
+        title: 'Lịch Sử Đặt Hàng',
+        icon: 'history',
+        screen: 'PurchaseHistoryScreen'
+    },
+    {
+        title: 'Hỗ Trợ',
+        icon: 'help',
+        screen: 'SupportScreen'
+    },
+    {
+        title: 'Đổi mật khẩu',
+        icon: 'lock',
+        screen: 'ChangePasswordScreen'
+    }
+];
 
 export default function MyAccountScreen({ navigation }) {
     const [user, setUser] = useState(null);
@@ -31,25 +61,43 @@ export default function MyAccountScreen({ navigation }) {
     }, [user]);
 
     const fetchUserData = async (email) => {
-        setLoading(true); // Đặt loading về true khi bắt đầu fetch dữ liệu
+        setLoading(true);
         try {
             const userDoc = await firestore().collection('USERS').doc(email).get();
+            const defaultImage = require('../../../assets/Image/avatar-vo-danh.png');
+            
             if (userDoc.exists) {
                 const data = userDoc.data();
-                setUserData({
-                    image: data.image || 'https://vivureviews.com/wp-content/uploads/2022/08/avatar-vo-danh-10.png',
-                    username: data.username || email.split('@')[0],
-                });
+                if (data.image) {
+                    // Nếu có ảnh từ server
+                    setUserData({
+                        image: { uri: data.image },
+                        username: data.username || email.split('@')[0],
+                    });
+                } else {
+                    // Nếu không có ảnh từ server, dùng ảnh mặc định
+                    setUserData({
+                        image: defaultImage,
+                        username: data.username || email.split('@')[0],
+                    });
+                }
             } else {
+                // Nếu không có document, dùng ảnh mặc định
                 setUserData({
-                    image: 'https://vivureviews.com/wp-content/uploads/2022/08/avatar-vo-danh-10.png',
+                    image: defaultImage,
                     username: email.split('@')[0],
                 });
             }
         } catch (error) {
             console.error("Error fetching user data: ", error);
+            // Trong trường hợp lỗi, vẫn set ảnh mặc định
+            const defaultImage = require('../../../assets/Image/avatar-vo-danh.png');
+            setUserData({
+                image: defaultImage,
+                username: email.split('@')[0],
+            });
         } finally {
-            setLoading(false); // Đặt loading về false khi fetch dữ liệu xong
+            setLoading(false);
         }
     };
 
@@ -62,58 +110,47 @@ export default function MyAccountScreen({ navigation }) {
         navigation.navigate('SignInWelcomeScreen');
     };
 
-
-    if (loading) {
-        return (
-            <View style={styles.loadingContainer}>
-                <Text style={styles.text}>Loading...</Text>
+    const MenuItem = ({ title, icon, onPress }) => (
+        <TouchableOpacity style={styles.menuItem} onPress={onPress}>
+            <View style={styles.menuItemContent}>
+                <Text style={styles.menuItemText}>{title}</Text>
+                <Icon name={icon} size={24} color={colors.grey2} />
             </View>
-        );
-    }
+        </TouchableOpacity>
+    );
 
     return (
-        <ScrollView style={styles.container}>
-            <HomeHeader navigation={navigation} />
-            <View style={styles.profileContainer}>
-                <Image 
-                    source={{ uri: userData.image || 'https://vivureviews.com/wp-content/uploads/2022/08/avatar-vo-danh-10.png' }} 
-                    style={styles.profileImage} 
-                />
-                <Text style={styles.username}>{userData.username}</Text>
-            </View>
-            <ScrollView contentContainerStyle={styles.scrollContainer}>
-                {user ? (
-                    <>
-                        <View style={styles.infoContainer}>
-                            <TouchableOpacity style={styles.infoItem} onPress={() => navigation.navigate('DetailAccountScreen')}>
-                                <Text style={styles.infoText}>Thông Tin Cá Nhân</Text>
-                            </TouchableOpacity>
-                            <View style={styles.separator} />
-                            <TouchableOpacity style={styles.infoItem} onPress={() => navigation.navigate('MyPromotionScreen')}>
-                                <Text style={styles.infoText}>Ưu Đãi</Text>
-                            </TouchableOpacity>
-                            <View style={styles.separator} />
-                            <TouchableOpacity style={styles.infoItem} onPress={() => navigation.navigate('PurchaseHistoryScreen')}>
-                                <Text style={styles.infoText}>Lịch Sử Đặt Hàng</Text>
-                            </TouchableOpacity>
-                            <View style={styles.separator} />
-                            <TouchableOpacity style={styles.infoItem} onPress={() => navigation.navigate('SupportScreen')}>
-                                <Text style={styles.infoText}>Hỗ Trợ</Text>
-                            </TouchableOpacity>
-                            <View style={styles.separator} />
-                            <TouchableOpacity style={styles.infoItem} onPress={() => navigation.navigate('SettingScreen')}>
-                                <Text style={styles.infoText}>Cài Đặt</Text>
-                            </TouchableOpacity>
-                        </View>
-                        <TouchableOpacity style={styles.button} onPress={handleSignOut}>
-                            <Text style={styles.buttonText}>Sign Out</Text>
-                        </TouchableOpacity>
-                    </>
-                ) : (
-                    <Text style={styles.text}>Loading...</Text>
-                )}
+        <View style={styles.container}>
+            <HomeHeader />
+            <ScrollView style={styles.scrollView}>
+                <View style={styles.profileSection}>
+                    <Image 
+                        source={userData.image}
+                        style={styles.profileImage}
+                    />
+                    <Text style={styles.username}>{userData.username}</Text>
+                    <Text style={styles.email}>{user?.email}</Text>
+                </View>
+
+                <View style={styles.menuContainer}>
+                    {menuItems.map((item, index) => (
+                        <React.Fragment key={index}>
+                            <MenuItem
+                                title={item.title}
+                                icon={item.icon}
+                                onPress={() => navigation.navigate(item.screen)}
+                            />
+                            {index < menuItems.length - 1 && <View style={styles.divider} />}
+                        </React.Fragment>
+                    ))}
+                </View>
+
+                <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
+                    <Text style={styles.signOutText}>Đăng xuất</Text>
+                    <Icon name="logout" size={24} color="white" />
+                </TouchableOpacity>
             </ScrollView>
-        </ScrollView>
+        </View>
     );
 }
 
@@ -122,74 +159,87 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#f8f9fa',
     },
-    scrollContainer: {
-        flexGrow: 1,
+    scrollView: {
+        flex: 1,
+    },
+    profileSection: {
+        backgroundColor: 'white',
         alignItems: 'center',
         padding: 20,
-    },
-    profileContainer: {
-        alignItems: 'center',
-        marginVertical: 20,
+        marginTop: 15,
+        marginBottom: 15,
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
     },
     profileImage: {
         width: 100,
         height: 100,
         borderRadius: 50,
+        marginBottom: 15,
     },
     username: {
-        fontSize: 20,
+        fontSize: 24,
         fontWeight: 'bold',
-        marginTop: 10,
-        color: '#333',
+        color: colors.buttons,
+        marginBottom: 5,
     },
-    infoContainer: {
-        width: '100%',
-        marginBottom: 20,
+    email: {
+        fontSize: 14,
+        color: colors.grey3,
     },
-    infoItem: {
-        backgroundColor: '#ffffff',
-        padding: 15,
-        borderRadius: 5,
-        marginBottom: 10,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
+    menuContainer: {
+        backgroundColor: 'white',
+        borderRadius: 15,
+        marginHorizontal: 15,
+        padding: 5,
+        elevation: 2,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
+        shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
-        shadowRadius: 3,
-        elevation: 3,
+        shadowRadius: 4,
     },
-    separator: {
-        height: 1,
-        backgroundColor: '#e0e0e0',
-        width: '100%',
-        marginVertical: 5,
+    menuItem: {
+        paddingVertical: 15,
+        paddingHorizontal: 20,
     },
-    infoText: {
-        fontSize: 16,
-        color: '#333',
-    },
-    text: {
-        fontSize: 18,
-        marginBottom: 20,
-        color: '#333',
-    },
-    button: {
-        backgroundColor: '#ff4757',
-        padding: 15,
-        borderRadius: 5,
+    menuItemContent: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
         alignItems: 'center',
-        width: '100%',
     },
-    buttonText: {
+    menuItemText: {
+        fontSize: 16,
+        color: colors.grey1,
+        fontWeight: '500',
+    },
+    divider: {
+        height: 1,
+        backgroundColor: colors.grey5,
+        marginHorizontal: 20,
+    },
+    signOutButton: {
+        flexDirection: 'row',
+        backgroundColor: colors.buttons,
+        marginHorizontal: 15,
+        marginTop: 20,
+        marginBottom: 30,
+        padding: 15,
+        borderRadius: 15,
+        alignItems: 'center',
+        justifyContent: 'center',
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+    },
+    signOutText: {
         color: 'white',
         fontSize: 16,
         fontWeight: 'bold',
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
+        marginRight: 10,
     },
 });
