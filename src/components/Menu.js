@@ -86,8 +86,14 @@ export default function Menu({ restaurantId }) {
             })}
         >
             <View style={styles.productContent}>
-                <Text style={styles.productName} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
-                <Text style={styles.productPrice}>{formatPrice(item.price)} VNĐ</Text>
+                <View style={styles.productInfo}>
+                    <Text style={styles.productName} numberOfLines={1} ellipsizeMode="tail">
+                        {item.name}
+                    </Text>
+                </View>
+                <View style={styles.priceContainer}>
+                    <Text style={styles.productPrice}>{formatPrice(item.price)} VNĐ</Text>
+                </View>
             </View>
         </TouchableOpacity>
     );
@@ -109,42 +115,61 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: colors.grey5,
         backgroundColor: colors.white,
+        elevation: 2,
+        marginVertical: 1,
     },
     selectedCategoryItem: {
         backgroundColor: colors.cardbackground,
+        borderLeftWidth: 4,
+        borderLeftColor: colors.buttons,
     },
     categoryText: {
         fontSize: 16,
         color: colors.grey1,
         fontWeight: 'bold',
-        
     },
     selectedCategoryText: {
         color: colors.buttons,
         fontSize: 18,
     },
     productItem: {
-        paddingVertical: 10,
-        paddingHorizontal: 30,
-        borderBottomWidth: 1,
+        paddingVertical: 12,
+        paddingHorizontal: 20,
+        borderBottomWidth: 0.5,
         borderBottomColor: colors.grey5,
-        backgroundColor: colors.cardbackground,
+        backgroundColor: colors.white,
+        marginLeft: 15,
     },
     productContent: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
     },
-    productName: {
-        fontSize: 16,
-        color: colors.grey1,
+    productInfo: {
         flex: 1,
-        marginRight: 10,
+        marginRight: 15,
+    },
+    productName: {
+        fontSize: 18,
+        color: colors.grey1,
         fontWeight: 'bold',
+        marginBottom: 4,
+    },
+    productDescription: {
+        fontSize: 13,
+        color: colors.grey3,
+    },
+    priceContainer: {
+        backgroundColor: colors.cardbackground,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: colors.buttons,
     },
     productPrice: {
         fontSize: 14,
-        color: colors.grey2,
+        color: colors.buttons,
         fontWeight: 'bold',
     },
 });

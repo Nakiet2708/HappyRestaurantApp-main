@@ -57,10 +57,37 @@ export default function RestaurantScreen({ route }) {
                             restaurantName={restaurantData.restaurantName}
                             onUpdate={() => setActiveTab('Cập nhật đánh giá')}
                         />
+                        <View style={styles.descriptionContainer}>
+                            <Text style={styles.descriptionTitle}>Giới thiệu</Text>
+                            <Text style={styles.descriptionText}>
+                                {restaurantData.describe || 'Chưa có mô tả'}
+                            </Text>
+                            <View style={styles.infoRow}>
+                                <Icon
+                                    name="time-outline"
+                                    type="ionicon"
+                                    size={20}
+                                    color={colors.grey2}
+                                />
+                                <Text style={styles.infoText}>
+                                    Giờ mở cửa: 7h - 22h
+                                </Text>
+                            </View>
+                            <View style={styles.infoRow}>
+                                <Icon
+                                    name="call-outline"
+                                    type="ionicon"
+                                    size={20}
+                                    color={colors.grey2}
+                                />
+                                <Text style={styles.infoText}>
+                                    Liên hệ: 0909090909
+                                </Text>
+                            </View>
+                        </View>
                         {activeTab === 'Cập nhật đánh giá' && (
                             <RatingComponent restaurantName={restaurantData.restaurantName} />
                         )}
-                        
                     </View>
                 );
             case 'Đặt bàn':
@@ -196,5 +223,35 @@ const styles = StyleSheet.create({
         backgroundColor: colors.white,
         borderRadius: 90
         
+    },
+    descriptionContainer: {
+        backgroundColor: colors.white,
+        padding: 15,
+        marginTop: -30,
+        borderRadius: 8,
+        elevation: 2,
+        marginHorizontal: 10,
+    },
+    descriptionTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: colors.black,
+        marginBottom: 10,
+    },
+    descriptionText: {
+        fontSize: 14,
+        color: colors.grey2,
+        lineHeight: 20,
+        marginBottom: 15,
+    },
+    infoRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginVertical: 5,
+    },
+    infoText: {
+        fontSize: 14,
+        color: colors.grey2,
+        marginLeft: 10,
     },
 });

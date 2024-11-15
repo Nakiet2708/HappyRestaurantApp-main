@@ -7,6 +7,7 @@ import FoodCard from '../components/FoodCard';
 import RestaurantsCard from '../components/RestaurantsCard';
 import { useNavigation } from '@react-navigation/native';
 import firestore from '@react-native-firebase/firestore';
+import Swiper from 'react-native-swiper';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -17,6 +18,7 @@ export default function HomeScreen() {
     const [productsData, setProductsData] = useState([]);
     const navigation = useNavigation();
     const [menuData, setMenuData] = useState([]);
+    const [advertisements, setAdvertisements] = useState([]);
 
     useEffect(() => {
         const fetchRestaurants = async () => {
@@ -96,9 +98,27 @@ export default function HomeScreen() {
                 Alert.alert('Error', 'Failed to fetch products data');
             }
         };
-    
+
+        const fetchAdvertisements = async () => {
+            try {
+                const adsSnapshot = await firestore()
+                    .collection('Advertisement')
+                    .orderBy('time', 'desc')
+                    .get();
+                    
+                const adsList = adsSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                setAdvertisements(adsList);
+            } catch (error) {
+                console.error('Lỗi khi tải quảng cáo:', error);
+            }
+        };
+
         fetchRestaurants();
         fetchProducts();
+        fetchAdvertisements();
     }, []);
 
     return (
@@ -106,22 +126,25 @@ export default function HomeScreen() {
             <HomeHeader />
             
             <ScrollView>
-                <View style={styles.filterView}>
-                    <View style={styles.locationView}>
-                        <View style={{ flexDirection: "row", alignItems: "center", paddingLeft: 40 }}>
-                            <Icon type="material-community" name="map-marker" color={colors.grey1} size={26} />
-                            <Text style={{ marginLeft: 5 }}>Vị trí của bạn</Text>
-                        </View>
-                        <View>
-                            <View style={styles.clockView}>
-                                <Icon type="material-community" name="clock-time-four" color={colors.grey1} size={25} />
-                                <Text style={{ marginLeft: 5 }}>Bây giờ</Text>
+                <View style={styles.swiperContainer}>
+                    <Swiper
+                        autoplay
+                        autoplayTimeout={3}
+                        showsPagination={true}
+                        height={200}
+                        dotColor={colors.grey3}
+                        activeDotColor={colors.buttons}
+                    >
+                        {advertisements.map((item) => (
+                            <View key={item.id} style={styles.slide}>
+                                <Image
+                                    source={{ uri: item.image }}
+                                    style={styles.advertisementImage}
+                                    resizeMode="cover"
+                                />
                             </View>
-                        </View>
-                    </View>
-                    <View>
-                        <Icon type="material-community" name="tune" color={colors.grey1} size={25} />
-                    </View>
+                        ))}
+                    </Swiper>
                 </View>
 
                 <View style={styles.headerTextView}>
@@ -237,30 +260,6 @@ const styles = StyleSheet.create({
         marginLeft: 5,
         fontSize: 16,
     },
-    filterView: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-evenly",
-        marginHorizontal: 10,
-        marginVertical: 8
-    },
-    clockView: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginLeft: 40,
-        backgroundColor: colors.cardbackground,
-        borderRadius: 15,
-        paddingHorizontal: 5,
-        paddingVertical: 5,
-        marginRight: 40
-    },
-    locationView: {
-        flexDirection: "row",
-        backgroundColor: colors.grey5,
-        borderRadius: 15,
-        paddingVertical: 3,
-        justifyContent: "space-between"
-    },
     headerText: {
         fontSize: 25,
         fontWeight: "bold",
@@ -311,5 +310,20 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         borderWidth: 1,
         borderColor: colors.buttons
-    }
+    },
+    swiperContainer: {
+        height: 200,
+        backgroundColor: colors.white,
+        marginBottom: 10,
+    },
+    slide: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    advertisementImage: {
+        width: '100%',
+        height: '100%',
+        borderRadius: 20
+    },
 });
