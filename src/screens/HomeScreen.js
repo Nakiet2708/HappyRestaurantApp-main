@@ -21,104 +21,130 @@ export default function HomeScreen() {
     const [advertisements, setAdvertisements] = useState([]);
 
     useEffect(() => {
-        const fetchRestaurants = async () => {
-            try {
-                const restaurantsCollection = await firestore().collection('restaurants').get();
-                const usersSnapshot = await firestore().collection('USERS').get();
+        // Subscription cho restaurants và ratings
+        const restaurantsSubscriber = firestore()
+            .collection('restaurants')
+            .onSnapshot(async (restaurantsSnapshot) => {
+                try {
+                    // Thêm onSnapshot cho USERS collection thay vì get()
+                    const usersSubscriber = firestore()
+                        .collection('USERS')
+                        .onSnapshot((usersSnapshot) => {
+                            const restaurantsList = restaurantsSnapshot.docs.map((doc) => {
+                                const restaurantData = doc.data();
+                                let totalRating = 0;
+                                let reviewCount = 0;
 
-                const restaurantsList = restaurantsCollection.docs.map((doc) => {
-                    const restaurantData = doc.data();
-                    let totalRating = 0;
-                    let reviewCount = 0;
+                                usersSnapshot.forEach((userDoc) => {
+                                    const userReviews = userDoc.data().Evaluate || [];
+                                    userReviews.forEach((review) => {
+                                        if (review.restaurantName === restaurantData.restaurantName) {
+                                            totalRating += review.rating;
+                                            reviewCount += 1;
+                                        }
+                                    });
+                                });
 
-                    usersSnapshot.forEach((userDoc) => {
-                        const userReviews = userDoc.data().Evaluate || [];
-                        userReviews.forEach((review) => {
-                            if (review.restaurantName === restaurantData.restaurantName) {
-                                totalRating += review.rating;
-                                reviewCount += 1;
-                            }
+                                const averageRating = reviewCount ? (totalRating / reviewCount).toFixed(1) : 0;
+
+                                return {
+                                    id: doc.id,
+                                    ...restaurantData,
+                                    averageRating,
+                                    totalReviews: reviewCount,
+                                };
+                            });
+
+                            const sortedRestaurants = restaurantsList.sort((a, b) => 
+                                a.restaurantName.localeCompare(b.restaurantName, 'vi')
+                            );
+                            setRestaurantsData(sortedRestaurants);
                         });
-                    });
 
-                    const averageRating = reviewCount ? (totalRating / reviewCount).toFixed(1) : 0;
+                    // Thêm cleanup cho usersSubscriber
+                    return () => usersSubscriber();
+                } catch (error) {
+                    console.error('Error fetching restaurants:', error);
+                    Alert.alert('Error', 'Failed to fetch restaurants data');
+                }
+            });
 
-                    return {
-                        id: doc.id,
-                        ...restaurantData,
-                        averageRating,
-                        totalReviews: reviewCount,
-                    };
-                });
-
-                const sortedRestaurants = restaurantsList.sort((a, b) => 
-                    a.restaurantName.localeCompare(b.restaurantName, 'vi')
-                );
-                setRestaurantsData(sortedRestaurants);
-
-                const menuCollection = await firestore().collection('menu').get();
-                const menuList = menuCollection.docs.map(doc => ({
+        // Subscription cho menu
+        const menuSubscriber = firestore()
+            .collection('menu')
+            .onSnapshot((menuSnapshot) => {
+                const menuList = menuSnapshot.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data()
                 }));
                 setMenuData(menuList);
-            } catch (error) {
-                console.error('Error fetching restaurants:', error);
-                Alert.alert('Error', 'Failed to fetch restaurants data');
-            }
-        };
+            });
 
-        const fetchProducts = async () => {
-            try {
-                const productsCollection = await firestore()
-                    .collection('menu')
-                    .get();
+        // Subscription cho products
+        const productsSubscriber = firestore()
+            .collection('menu')
+            .onSnapshot(async (menuSnapshot) => {
+                try {
+                    // Tạo array để lưu tất cả các subscriptions của subcollections
+                    const productSubscriptions = [];
+                    let productsList = [];
 
-                let productsList = [];
-                for (const menuDoc of productsCollection.docs) {
-                    const productCollection = await firestore()
-                        .collection('menu')
-                        .doc(menuDoc.id)
-                        .collection('product')
-                        .where('status', '==', 'Khuyến mãi') // Lọc sản phẩm có status "Khuyến mãi"
-                        .get();
+                    menuSnapshot.docs.forEach((menuDoc) => {
+                        // Tạo subscription cho mỗi subcollection product
+                        const productSubscription = firestore()
+                            .collection('menu')
+                            .doc(menuDoc.id)
+                            .collection('product')
+                            .where('status', '==', 'Khuyến mãi')
+                            .onSnapshot((productSnapshot) => {
+                                // Xóa các sản phẩm cũ của category này
+                                productsList = productsList.filter(
+                                    product => product.categoryId !== menuDoc.id
+                                );
 
-                    const products = productCollection.docs.map(doc => ({
-                        id: doc.id,
-                        categoryId: menuDoc.id, // Lấy menuDoc.id làm categoryId
-                        ...doc.data()
-                    }));
+                                // Thêm các sản phẩm mới
+                                const products = productSnapshot.docs.map(doc => ({
+                                    id: doc.id,
+                                    categoryId: menuDoc.id,
+                                    ...doc.data()
+                                }));
 
-                    productsList = [...productsList, ...products];
+                                productsList = [...productsList, ...products];
+                                setProductsData([...productsList]);
+                            });
+
+                        productSubscriptions.push(productSubscription);
+                    });
+
+                    // Thêm cleanup cho tất cả product subscriptions
+                    return () => {
+                        productSubscriptions.forEach(unsubscribe => unsubscribe());
+                    };
+                } catch (error) {
+                    console.error('Error fetching products:', error);
+                    Alert.alert('Error', 'Failed to fetch products data');
                 }
+            });
 
-                setProductsData(productsList);
-            } catch (error) {
-                console.error('Error fetching products:', error);
-                Alert.alert('Error', 'Failed to fetch products data');
-            }
-        };
-
-        const fetchAdvertisements = async () => {
-            try {
-                const adsSnapshot = await firestore()
-                    .collection('Advertisement')
-                    .orderBy('time', 'desc')
-                    .get();
-                    
+        // Subscription cho advertisements
+        const advertisementsSubscriber = firestore()
+            .collection('Advertisement')
+            .orderBy('time', 'desc')
+            .onSnapshot((adsSnapshot) => {
                 const adsList = adsSnapshot.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data()
                 }));
                 setAdvertisements(adsList);
-            } catch (error) {
-                console.error('Lỗi khi tải quảng cáo:', error);
-            }
-        };
+            });
 
-        fetchRestaurants();
-        fetchProducts();
-        fetchAdvertisements();
+        // Cleanup subscriptions
+        return () => {
+            restaurantsSubscriber();
+            menuSubscriber();
+            productsSubscriber();
+            advertisementsSubscriber();
+        };
     }, []);
 
     return (

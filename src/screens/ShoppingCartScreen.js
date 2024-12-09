@@ -23,9 +23,25 @@ export default function ShoppingCartScreen() {
   const navigation = useNavigation();
 
   useEffect(() => {
-    const subtotal = cartItems.reduce((sum, item) => sum + item.price, 0);
-    const totalDiscount = cartItems.reduce((sum, item) => sum + (item.discountAmount || 0), 0);
+    // Tính giá gốc (bao gồm cả phòng và món ăn)
+    const subtotal = cartItems.reduce((sum, item) => {
+      if (!item.fromTableDetails) {
+        return sum + (item.price * (item.quantity || 1));
+      }
+      return sum + item.price;
+    }, 0);
+    
+    // Tính tổng giảm giá (chỉ áp dụng cho món ăn)
+    const totalDiscount = cartItems.reduce((sum, item) => {
+      if (!item.fromTableDetails) {
+        // Sử dụng discountAmount đã được tính sẵn
+        return sum + (item.discountAmount * (item.quantity || 1));
+      }
+      return sum;
+    }, 0);
+    
     const total = subtotal - totalDiscount;
+    
     setSubtotal(subtotal);
     setTotalPrice(total);
   }, [cartItems]);
@@ -164,7 +180,16 @@ export default function ShoppingCartScreen() {
       </View>
       <View style={styles.totalContainer}>
         <Text style={styles.totalText}>Giảm giá:</Text>
-        <Text style={styles.totalPrice}>{formatPrice(cartItems.reduce((sum, item) => sum + (item.discountAmount || 0), 0))} VNĐ</Text>
+        <Text style={styles.totalPrice}>
+          {formatPrice(
+            cartItems.reduce((sum, item) => {
+              if (!item.fromTableDetails) {
+                return sum + (item.discountAmount * (item.quantity || 1));
+              }
+              return sum;
+            }, 0)
+          )} VNĐ
+        </Text>
       </View>
       <View style={styles.totalContainer}>
         <Text style={styles.totalText}>Tổng tiền:</Text>

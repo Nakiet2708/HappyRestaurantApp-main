@@ -139,18 +139,20 @@ export default function ProductDetails({ route }) {
       .filter(key => selectedOptions[key])
       .map(key => options.find(opt => opt.id === key).name);
 
+    // Tính discountAmount cho 1 sản phẩm
+    const discountAmount = Price * (product.discountPrice/100);
     const baseTotal = Price * quantity;
-    const discountAmount = baseTotal * ((product.discountPrice ?? 0) / 100);
-    const ProductTotalPrice = baseTotal - discountAmount;
+    const totalDiscount = discountAmount * quantity;
+    const ProductTotalPrice = baseTotal - totalDiscount;
 
     const cartItem = {
       id: product.id,
       name: product.name,
       image: product.image,
-      price: Price, 
+      price: Price,
       quantity: quantity,
       options: selectedOptionsList,
-      discountAmount: discountAmount,
+      discountAmount: discountAmount, // Giá trị giảm giá cho 1 sản phẩm
       ProductTotalPrice: ProductTotalPrice,
     };
 

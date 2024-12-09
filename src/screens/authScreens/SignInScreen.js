@@ -4,6 +4,7 @@ import { colors } from "../../global/styles";
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import auth from '@react-native-firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import firestore from '@react-native-firebase/firestore';
 
 export default function SignInScreen({ navigation }) {
     const [email, setEmail] = useState('');
@@ -28,6 +29,18 @@ export default function SignInScreen({ navigation }) {
 
         try {
             const response = await auth().signInWithEmailAndPassword(email, password);
+            
+            const userDoc = await firestore()
+                .collection('USERS')
+                .doc(response.user.email)
+                .get();
+
+            if (!userDoc.exists) {
+                Alert.alert('Lỗi', 'Tài khoản không tồn tại trong hệ thống');
+                await auth().signOut();
+                return;
+            }
+
             console.log('User signed in:', response.user.email);
             await AsyncStorage.setItem('user', JSON.stringify(response.user));
             

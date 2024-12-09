@@ -3,11 +3,10 @@ import { View, PermissionsAndroid, Platform, Alert, TextInput, Button, Image, To
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import Geolocation from '@react-native-community/geolocation';
 import firestore from '@react-native-firebase/firestore';
-import { useRoute } from '@react-navigation/native';
 
 const GEOAPIFY_API_KEY = 'be8283f0ca404169924653620c942bfa';
 
-const RestaurantsMapScreen = () => {
+const RestaurantsMapScreen = ({ route }) => {
   const [currentPosition, setCurrentPosition] = useState(null);
   const [address, setAddress] = useState('');
   const [destination, setDestination] = useState(null);
@@ -16,7 +15,6 @@ const RestaurantsMapScreen = () => {
   const [storeLocations, setStoreLocations] = useState([]);
   const [addressSuggestions, setAddressSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const route = useRoute();
   const [isNavigating, setIsNavigating] = useState(false);
   const watchId = useRef(null);
 
@@ -138,66 +136,6 @@ const RestaurantsMapScreen = () => {
     const { coordinate } = event.nativeEvent;
     setCurrentPosition(coordinate);
     
-    // Tìm cơ sở gần nhất
-    let nearestStore = null;
-    let shortestDistance = Infinity;
-    
-    storeLocations.forEach(store => {
-      const distance = calculateDistance(
-        coordinate.latitude,
-        coordinate.longitude,
-        parseFloat(store.latitude),
-        parseFloat(store.longitude)
-      );
-      
-      if (distance < shortestDistance) {
-        shortestDistance = distance;
-        nearestStore = store;
-      }
-    });
-
-    if (nearestStore) {
-      // Kiểm tra khoảng cách
-      if (shortestDistance > MAX_DISTANCE) {
-        Alert.alert(
-          'Thông báo',
-          `Không thể tìm đường đi vì khoảng cách quá xa (${shortestDistance.toFixed(2)} km). Vui lòng chọn địa điểm trong bán kính ${MAX_DISTANCE}km.`
-        );
-        return;
-      }
-
-      const storeCoordinate = {
-        latitude: parseFloat(nearestStore.latitude),
-        longitude: parseFloat(nearestStore.longitude)
-      };
-      setDestination(storeCoordinate);
-      
-      try {
-        // Lấy và vẽ đường đi
-        const route = await getRouteFromGeoapify(coordinate, storeCoordinate);
-        if (!route || route.length === 0) {
-          Alert.alert(
-            'Thông báo',
-            'Không thể tìm được đường đi đến địa điểm này. Vui lòng thử địa điểm khác.'
-          );
-          return;
-        }
-        setRouteCoordinates(route);
-        
-        // Hiển thị thông tin
-        Alert.alert(
-          'Cơ sở gần nhất',
-          `${nearestStore.restaurantName}\n${nearestStore.businessAddress}\nKhoảng cách: ${shortestDistance.toFixed(2)} km`
-        );
-      } catch (error) {
-        console.error('Lỗi khi tìm đường:', error);
-        Alert.alert(
-          'Lỗi',
-          'Không thể tìm được đường đi đến địa điểm này. Vui lòng thử lại sau.'
-        );
-      }
-    }
-
     // Chuyển đổi tọa độ thành địa chỉ cho điểm xuất phát
     try {
       const response = await fetch(
@@ -473,6 +411,43 @@ const RestaurantsMapScreen = () => {
     };
   }, []);
 
+  useEffect(() => {
+    // Kiểm tra xem có thông tin nhà hàng được truyền vào không
+    const destinationRestaurant = route.params?.destinationRestaurant;
+    if (destinationRestaurant) {
+      setDestination({
+        latitude: destinationRestaurant.latitude,
+        longitude: destinationRestaurant.longitude
+      });
+      
+      // Tự động lấy vị trí hiện tại và tạo đường đi
+      getCurrentPosition().then(async (position) => {
+        const { latitude, longitude } = position.coords;
+        const currentCoordinate = { latitude, longitude };
+        setCurrentPosition(currentCoordinate);
+        
+        try {
+          const route = await getRouteFromGeoapify(
+            currentCoordinate,
+            {
+              latitude: destinationRestaurant.latitude,
+              longitude: destinationRestaurant.longitude
+            }
+          );
+          if (route) {
+            setRouteCoordinates(route);
+            Alert.alert(
+              'Thông tin nhà hàng',
+              `${destinationRestaurant.restaurantName}\n${destinationRestaurant.businessAddress}`
+            );
+          }
+        } catch (error) {
+          console.error('Lỗi khi tạo đường đi:', error);
+        }
+      });
+    }
+  }, [route.params]);
+
   return (
     <View style={{ 
       flex: 1,
@@ -520,7 +495,7 @@ const RestaurantsMapScreen = () => {
         )}
 
         <Button
-          title="Lấy vị trí hiện tại"
+          title="Tìm cơ sở gần nhất"
           onPress={async () => {
             try {
               const position = await getCurrentPosition(true);

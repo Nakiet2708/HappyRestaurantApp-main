@@ -10,33 +10,34 @@ const ReviewComponent = ({ restaurantName }) => {
   const reviewsPerPage = 2;
 
   useEffect(() => {
-    const fetchReviews = async () => {
-      try {
-        const usersSnapshot = await firestore().collection('USERS').get();
-        const allReviews = [];
-
-        usersSnapshot.forEach((doc) => {
-          const userData = doc.data();
-          const userReviews = userData.Evaluate || [];
-          userReviews.forEach((review) => {
-            if (review.restaurantName === restaurantName) {
-              allReviews.push({
-                ...review,
-                username: userData.username,
-                userImage: userData.image,
-              });
-            }
+    const subscriber = firestore()
+      .collection('USERS')
+      .onSnapshot(async (snapshot) => {
+        try {
+          const allReviews = [];
+          
+          snapshot.forEach((doc) => {
+            const userData = doc.data();
+            const userReviews = userData.Evaluate || [];
+            userReviews.forEach((review) => {
+              if (review.restaurantName === restaurantName) {
+                allReviews.push({
+                  ...review,
+                  username: userData.username,
+                  userImage: userData.image,
+                });
+              }
+            });
           });
-        });
 
-        allReviews.sort((a, b) => new Date(b.date) - new Date(a.date));
-        setReviews(allReviews);
-      } catch (error) {
-        console.error('Error fetching reviews:', error);
-      }
-    };
+          allReviews.sort((a, b) => new Date(b.date) - new Date(a.date));
+          setReviews(allReviews);
+        } catch (error) {
+          console.error('Error fetching reviews:', error);
+        }
+      });
 
-    fetchReviews();
+    return () => subscriber();
   }, [restaurantName]);
 
   const renderReview = ({ item }) => (

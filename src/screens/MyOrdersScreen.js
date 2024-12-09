@@ -11,32 +11,41 @@ export default function MyOrdersScreen() {
 	const [appointments, setAppointments] = useState([]);
 	const navigation = useNavigation();
 
-	const fetchAppointments = async () => {
-		try {
-			const userData = await AsyncStorage.getItem('user');
-			if (userData) {
-				const user = JSON.parse(userData);
-				const snapshot = await firestore()
-					.collection('Appointments')
-					.where('email', '==', user.email)
-					.where('status', 'in', ['Chưa nhận hàng', 'Chưa nhận phòng'])
-					.get();
-				const data = snapshot.docs.map(doc => ({
-					id: doc.id,
-					...doc.data()
-				}));
-				// sắp xếp
-				data.sort((a, b) => b.dateTime.toDate() - a.dateTime.toDate());
-				setAppointments(data);
-			}
-		} catch (error) {
-			console.error('Error fetching appointments:', error);
-			}
-	};
-
 	useFocusEffect(
 		useCallback(() => {
-			fetchAppointments();
+			let subscriber = null;
+
+			const fetchData = async () => {
+				try {
+					const userData = await AsyncStorage.getItem('user');
+					if (userData) {
+						const user = JSON.parse(userData);
+						
+						subscriber = firestore()
+							.collection('Appointments')
+							.where('email', '==', user.email)
+							.where('status', 'in', ['Chưa nhận hàng', 'Chưa nhận phòng'])
+							.onSnapshot(snapshot => {
+								const data = snapshot.docs.map(doc => ({
+									id: doc.id,
+									...doc.data()
+								}));
+								data.sort((a, b) => b.dateTime.toDate() - a.dateTime.toDate());
+								setAppointments(data);
+							});
+					}
+				} catch (error) {
+					console.error('Error fetching appointments:', error);
+				}
+			};
+
+			fetchData();
+			
+			return () => {
+				if (subscriber) {
+					subscriber();
+				}
+			};
 		}, [])
 	);
 

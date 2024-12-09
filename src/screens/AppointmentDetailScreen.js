@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Alert } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import { colors } from '../global/styles';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { useNavigation } from '@react-navigation/native';
 
-const AppointmentDetailScreen = ({ route, navigation }) => {
+const AppointmentDetailScreen = ({ route }) => {
+    const navigation = useNavigation();
     const { appointmentId } = route.params;
     const [appointment, setAppointment] = useState(null);
+    const [restaurantData, setRestaurantData] = useState(null);
 
     useEffect(() => {
         const fetchAppointmentDetails = async () => {
@@ -17,6 +20,27 @@ const AppointmentDetailScreen = ({ route, navigation }) => {
         };
         fetchAppointmentDetails();
     }, [appointmentId]);
+
+    useEffect(() => {
+        const fetchRestaurantData = async () => {
+            if (appointment?.tableItems?.[0]?.restaurantName) {
+                try {
+                    const restaurantSnapshot = await firestore()
+                        .collection('restaurants')
+                        .where('restaurantName', '==', appointment.tableItems[0].restaurantName)
+                        .get();
+
+                    if (!restaurantSnapshot.empty) {
+                        setRestaurantData(restaurantSnapshot.docs[0].data());
+                    }
+                } catch (error) {
+                    console.error('Error fetching restaurant data:', error);
+                }
+            }
+        };
+
+        fetchRestaurantData();
+    }, [appointment]);
 
     if (!appointment) {
         return <Text style={styles.loadingText}>Đang tải...</Text>;
@@ -32,6 +56,21 @@ const AppointmentDetailScreen = ({ route, navigation }) => {
         hour: '2-digit',
         minute: '2-digit'
     });
+
+    const handleNavigation = () => {
+        if (restaurantData) {
+            navigation.navigate('RestaurantsMap', {
+                destinationRestaurant: {
+                    latitude: parseFloat(restaurantData.latitude),
+                    longitude: parseFloat(restaurantData.longitude),
+                    restaurantName: restaurantData.restaurantName,
+                    businessAddress: restaurantData.businessAddress
+                }
+            });
+        } else {
+            Alert.alert('Thông báo', 'Không thể tìm thấy thông tin nhà hàng');
+        }
+    };
 
     return (
         <View style={styles.container}>
@@ -59,9 +98,32 @@ const AppointmentDetailScreen = ({ route, navigation }) => {
                         <Icon name="person" size={20} color={colors.grey2} />
                         <Text style={styles.infoText}>{appointment.username}</Text>
                     </View>
-                    <View style={styles.statusRow}>
-                        <Icon name="local-shipping" size={20} color={colors.buttons} />
-                        <Text style={styles.statusText}>{appointment.status}</Text>
+                    {appointment.recipientName && (
+                        <View style={styles.infoRow}>
+                            <Icon name="person-outline" size={20} color={colors.grey2} />
+                            <Text style={styles.infoText}>Người nhận: {appointment.recipientName}</Text>
+                        </View>
+                    )}
+                    {appointment.recipientPhone && (
+                        <View style={styles.infoRow}>
+                            <Icon name="phone" size={20} color={colors.grey2} />
+                            <Text style={styles.infoText}>SĐT người nhận: {appointment.recipientPhone}</Text>
+                        </View>
+                    )}
+                    <View style={styles.statusContainer}>
+                        <View style={styles.statusRow}>
+                            <Icon name="local-shipping" size={20} color={colors.buttons} />
+                            <Text style={styles.statusText}>{appointment.status}</Text>
+                        </View>
+                        {appointment?.tableItems?.length > 0 && restaurantData && (
+                            <TouchableOpacity 
+                                style={styles.navigationButton}
+                                onPress={handleNavigation}
+                            >
+                                <Icon name="directions" size={20} color={colors.white} />
+                                <Text style={styles.navigationButtonText}>Dẫn đường</Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
                 </View>
 
@@ -99,7 +161,9 @@ const AppointmentDetailScreen = ({ route, navigation }) => {
                             <View key={index} style={styles.orderItem}>
                                 <Image source={{ uri: item.image }} style={styles.tableImage} />
                                 <View style={styles.itemInfo}>
-                                    <Text style={styles.itemName}>{item.name}</Text>
+                                    <Text style={styles.itemName}>
+                                        {item.name} - {item.restaurantName}
+                                    </Text>
                                     <Text style={styles.timeSlot}>
                                         <Icon name="access-time" size={16} color={colors.grey2} /> {item.timeSlot}
                                     </Text>
@@ -121,7 +185,7 @@ const AppointmentDetailScreen = ({ route, navigation }) => {
                         <Text style={styles.summaryLabel}>Giảm giá:</Text>
                         <Text style={styles.discountValue}>
                             {appointment.otherItems?.reduce((total, item) => 
-                                total + (item.discountAmount || 0), 0).toLocaleString('vi-VN')} VNĐ
+                                total + ((item.discountAmount || 0) * (item.quantity || 1)), 0).toLocaleString('vi-VN')} VNĐ
                         </Text>
                     </View>
                     <View style={styles.divider} />
@@ -181,6 +245,11 @@ const styles = StyleSheet.create({
         marginLeft: 10,
         fontSize: 16,
         color: colors.grey2,
+    },
+    statusContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
     },
     statusRow: {
         flexDirection: 'row',
@@ -285,6 +354,20 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: 'bold',
         color: colors.buttons,
+    },
+    navigationButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.buttons,
+        paddingHorizontal: 15,
+        paddingVertical: 8,
+        borderRadius: 20,
+        gap: 5,
+    },
+    navigationButtonText: {
+        color: colors.white,
+        fontWeight: '500',
+        fontSize: 14,
     },
 });
 

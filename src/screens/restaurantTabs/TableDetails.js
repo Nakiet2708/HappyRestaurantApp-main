@@ -127,10 +127,15 @@ export default function TableDetail({ route }) {
   }, [selectedOptions, options, table.price]);
 
   const toggleOption = (optionId) => {
-    setSelectedOptions(prevState => ({
-      ...prevState,
-      [optionId]: !prevState[optionId]
-    }));
+    setSelectedOptions(prevState => {
+      const newState = Object.keys(prevState).reduce((acc, key) => {
+        acc[key] = false;
+        return acc;
+      }, {});
+      
+      newState[optionId] = !prevState[optionId];
+      return newState;
+    });
   };
 
 
@@ -326,7 +331,7 @@ export default function TableDetail({ route }) {
               </View>
             ))
           ) : (
-            <Text>No options available for this table.</Text>
+            <Text>Không có trang trí nào cho bàn này.</Text>
           )}
 
           <Text style={styles.totalPrice}>Tổng tiền: {formatPrice(totalPrice)} VNĐ</Text>

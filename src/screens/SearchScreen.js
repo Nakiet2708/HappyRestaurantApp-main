@@ -13,10 +13,15 @@ export default function SearchScreen() {
     const [restaurantsData, setRestaurantsData] = useState([]);
 
     useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const categoriesCollection = await firestore().collection('menu').get();
-                const categoriesList = categoriesCollection.docs.map(doc => ({
+        let categoriesSubscriber = null;
+        let restaurantsSubscriber = null;
+        let usersSubscriber = null;
+
+        // Subscription cho categories
+        categoriesSubscriber = firestore()
+            .collection('menu')
+            .onSnapshot(snapshot => {
+                const categoriesList = snapshot.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data()
                 }));
@@ -25,46 +30,60 @@ export default function SearchScreen() {
                     a.name.localeCompare(b.name, 'vi')
                 );
                 setCategories(sortedCategories);
+            });
 
-                const restaurantsCollection = await firestore().collection('restaurants').get();
-                const usersSnapshot = await firestore().collection('USERS').get();
+        // Subscription cho restaurants và ratings
+        restaurantsSubscriber = firestore()
+            .collection('restaurants')
+            .onSnapshot(restaurantsSnapshot => {
+                // Subscription cho users để lấy ratings
+                usersSubscriber = firestore()
+                    .collection('USERS')
+                    .onSnapshot(usersSnapshot => {
+                        const restaurantsList = restaurantsSnapshot.docs.map((doc) => {
+                            const restaurantData = doc.data();
+                            let totalRating = 0;
+                            let reviewCount = 0;
 
-                const restaurantsList = restaurantsCollection.docs.map((doc) => {
-                    const restaurantData = doc.data();
-                    let totalRating = 0;
-                    let reviewCount = 0;
+                            usersSnapshot.forEach((userDoc) => {
+                                const userReviews = userDoc.data().Evaluate || [];
+                                userReviews.forEach((review) => {
+                                    if (review.restaurantName === restaurantData.restaurantName) {
+                                        totalRating += review.rating;
+                                        reviewCount += 1;
+                                    }
+                                });
+                            });
 
-                    usersSnapshot.forEach((userDoc) => {
-                        const userReviews = userDoc.data().Evaluate || [];
-                        userReviews.forEach((review) => {
-                            if (review.restaurantName === restaurantData.restaurantName) {
-                                totalRating += review.rating;
-                                reviewCount += 1;
-                            }
+                            const averageRating = reviewCount ? (totalRating / reviewCount).toFixed(1) : 0;
+
+                            return {
+                                id: doc.id,
+                                ...restaurantData,
+                                averageRating,
+                                totalReviews: reviewCount,
+                            };
                         });
+
+                        const sortedRestaurants = restaurantsList.sort((a, b) => 
+                            a.restaurantName.localeCompare(b.restaurantName, 'vi')
+                        );
+                        setRestaurantsData(sortedRestaurants);
                     });
+            });
 
-                    const averageRating = reviewCount ? (totalRating / reviewCount).toFixed(1) : 0;
-
-                    return {
-                        id: doc.id,
-                        ...restaurantData,
-                        averageRating,
-                        totalReviews: reviewCount,
-                    };
-                });
-
-                const sortedRestaurants = restaurantsList.sort((a, b) => 
-                    a.restaurantName.localeCompare(b.restaurantName, 'vi')
-                );
-                setRestaurantsData(sortedRestaurants);
-
-            } catch (error) {
-                console.error('Error fetching data:', error);
+        // Cleanup function
+        return () => {
+            if (categoriesSubscriber) {
+                categoriesSubscriber();
+            }
+            if (restaurantsSubscriber) {
+                restaurantsSubscriber();
+            }
+            if (usersSubscriber) {
+                usersSubscriber();
             }
         };
-
-        fetchData();
     }, []);
 
     return (

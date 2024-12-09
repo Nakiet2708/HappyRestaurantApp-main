@@ -56,6 +56,7 @@ function HomeStack() {
       <Stack.Screen name="TableDetail" component={TableDetail} />
       <Stack.Screen name="PaymentOptions" component={PaymentOptionsScreen} />
       <Stack.Screen name="RestaurantsMapScreen" component={RestaurantsMapScreen} />
+      <Stack.Screen name="Map" component={Map} />
     </Stack.Navigator>
   );
 }

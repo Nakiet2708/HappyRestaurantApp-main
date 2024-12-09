@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Alert, StyleSheet, Image, ScrollView, Platform, NativeModules, DeviceEventEmitter, Clipboard } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, StyleSheet, Image, ScrollView, Platform, NativeModules, DeviceEventEmitter, Clipboard, TextInput, Modal } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useCart } from '../contexts/CartContext';
 import { colors } from '../global/styles';
@@ -29,10 +29,18 @@ const config = {
 
 export default function PaymentOptionsScreen({ navigation, route }) {
   const { cartItems, setCartItems } = useCart();
-  const { totalPrice } = route.params;
-  const [lastTransactionId, setLastTransactionId] = useState(null);
+  const [totalAmount] = useState(route.params.totalPrice);
   const [selectedMethod, setSelectedMethod] = useState(null);
   const [userInfo, setUserInfo] = useState({});
+  const [isUsingRecipient, setIsUsingRecipient] = useState(false);
+  const [recipient, setRecipient] = useState({
+    name: '',
+    phone: '',
+    address: '',
+    latitude: null,
+    longitude: null
+  });
+  const [isRecipientModalVisible, setIsRecipientModalVisible] = useState(false);
 
   useEffect(() => {
     const fetchUserInfo = async () => {
@@ -70,6 +78,24 @@ export default function PaymentOptionsScreen({ navigation, route }) {
     });
   }, []);
 
+  useEffect(() => {
+    if (route.params?.selectedAddress && route.params?.shouldUpdateAddress) {
+      setRecipient(prev => ({
+        ...prev,
+        address: route.params.selectedAddress,
+        latitude: route.params.latitude,
+        longitude: route.params.longitude,
+      }));
+      setIsRecipientModalVisible(true);
+      navigation.setParams({ 
+        selectedAddress: undefined,
+        shouldUpdateAddress: undefined,
+        latitude: undefined,
+        longitude: undefined,
+      });
+    }
+  }, [route.params?.selectedAddress]);
+
   const paymentMethods = [
     {
       name: 'ZaloPay',
@@ -93,7 +119,7 @@ export default function PaymentOptionsScreen({ navigation, route }) {
         const userDoc = await firestore().collection('USERS').doc(user.email).get();
         
         if (userDoc.exists) {
-          const { username, phone ,address, latitude, longitude} = userDoc.data();
+          const { username, phone, address, latitude, longitude } = userDoc.data();
           
           const dateTime = new Date();
           const tableItems = cartItems.filter(item => item.fromTableDetails);
@@ -107,16 +133,25 @@ export default function PaymentOptionsScreen({ navigation, route }) {
             phone,
             tableItems,
             otherItems,
-            address,
-            latitude,
-            longitude,
             status,
-            totalPrice, 
+            totalPrice: totalAmount,
           };
+
+          // Thêm thông tin người nhận nếu có
+          if (isUsingRecipient) {
+            appointmentData.recipientName = recipient.name;
+            appointmentData.recipientPhone = recipient.phone;
+            appointmentData.address = recipient.address;
+            appointmentData.latitude = recipient.latitude;
+            appointmentData.longitude = recipient.longitude;
+          } else {
+            appointmentData.address = address;
+            appointmentData.latitude = latitude;
+            appointmentData.longitude = longitude;
+          }
 
           await firestore().collection('Appointments').add(appointmentData);
           console.log('Dữ liệu cuộc hẹn đã được thêm thành công vào Firestore');
-        
         }
       }
     } catch (error) {
@@ -126,15 +161,15 @@ export default function PaymentOptionsScreen({ navigation, route }) {
 
   const handlePayment = async () => {
     if (selectedMethod === 'ZaloPay') {
-      await handleZaloPayPayment();
+      await handleZaloPayPayment(totalAmount);
     } else if (selectedMethod === 'MoMo') {
-      await onPressMoMo();
+      await onPressMoMo(totalAmount);
     } else {
       Alert.alert('Error', 'Please select a payment method.');
     }
   };
 
-  const handleZaloPayPayment = async () => {
+  const handleZaloPayPayment = async (totalPrice) => {
     try {
       const userData = await AsyncStorage.getItem('user');
       if (!userData) {
@@ -257,7 +292,7 @@ export default function PaymentOptionsScreen({ navigation, route }) {
         return;
       }
 
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       const transactionInfoStr = await AsyncStorage.getItem('transaction_info');
       const transactionInfo = JSON.parse(transactionInfoStr);
@@ -316,7 +351,7 @@ export default function PaymentOptionsScreen({ navigation, route }) {
     }
   };
 
-  const onPressMoMo = async () => {
+  const onPressMoMo = async (totalPrice) => {
     let jsonData = {
       enviroment,
       action: "gettoken",
@@ -341,17 +376,50 @@ export default function PaymentOptionsScreen({ navigation, route }) {
 
   async function momoHandleResponse(response) {
     try {
-      if (response && response.status == 0) {
-        Alert.alert('Thông báo', 'Thanh toán thành công.');
+      console.log('Phản hồi từ MoMo:', response);
+      
+      if (response && response.status === 0) {
+        // Thanh toán thành công
+        Alert.alert(
+          'Thông báo',
+          'Bạn đã thanh toán thành công!!.'
+        );
         await handlePaymentSuccess();
-          setCartItems([]);
-          navigation.goBack();
-        // Handle success
+        setCartItems([]);
+        navigation.goBack();
       } else {
-        // Handle error
+        // Xử lý các trường hợp lỗi
+        let errorMessage = 'Thanh toán thất bại';
+        switch (response?.status) {
+          case 1: errorMessage = 'Giao dịch đã bị hủy'; break;
+          case 2: errorMessage = 'Lỗi kết nối'; break;
+          // ... các trường hợp khác
+        }
+        Alert.alert('Thông báo', errorMessage);
       }
-    } catch (ex) {}
+    } catch (error) {
+      console.error('Lỗi thanh toán MoMo:', error);
+      Alert.alert(
+        'Lỗi',
+        'Đã xảy ra lỗi trong quá trình xử lý thanh toán. Vui lòng thử lại sau.',
+        [
+          {
+            text: 'OK',
+            onPress: () => navigation.goBack()
+          }
+        ]
+      );
+    }
   }
+
+  const handleRecipientSubmit = () => {
+    if (!recipient.name || !recipient.phone || !recipient.address) {
+      Alert.alert('Lỗi', 'Vui lòng điền đầy đủ thông tin người nhận');
+      return;
+    }
+    setIsUsingRecipient(true);
+    setIsRecipientModalVisible(false);
+  };
 
   return (
     <View style={styles.container}>
@@ -386,32 +454,115 @@ export default function PaymentOptionsScreen({ navigation, route }) {
             <Text style={styles.detailLabel}>Dịch vụ</Text>
             <Text style={styles.detailValue}>Nhà Hàng HAPPY</Text>
           </View>
+          
+          {isUsingRecipient && (
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Người nhận</Text>
+              <Text style={styles.detailValue}>{recipient.name}</Text>
+            </View>
+          )}
+
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Tên khách hàng</Text>
             <Text style={styles.detailValue}>{userInfo.username}</Text>
           </View>
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Số tiền</Text>
-            <Text style={styles.detailValue}>{totalPrice}đ</Text>
+            <Text style={styles.detailValue}>{totalAmount}đ</Text>
           </View>
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Số điện thoại</Text>
-            <Text style={styles.detailValue}>{userInfo.phone}</Text>
+            <Text style={styles.detailValue}>
+              {isUsingRecipient ? recipient.phone : userInfo.phone}
+            </Text>
           </View>
           <View style={[styles.detailRow, styles.lastDetailRow]}>
             <Text style={styles.detailLabel}>Địa chỉ</Text>
-            <Text style={styles.detailValue}>{userInfo.address}</Text>
+            <Text style={styles.detailValue}>
+              {isUsingRecipient ? recipient.address : userInfo.address}
+            </Text>
           </View>
-
         </View>
 
         <TouchableOpacity
+          style={styles.recipientButton}
+          onPress={() => setIsRecipientModalVisible(true)}
+        >
+          <Text style={styles.recipientButtonText}>
+            {isUsingRecipient ? 'Thay đổi người nhận' : 'Thêm người nhận khác'}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={styles.payButton}
-          onPress={handlePayment}
-          // onPress={handlePaymentSuccess}
+          onPress={() => handlePayment(totalAmount)}
+          // onPress={() => handlePaymentSuccess()}
         >
           <Text style={styles.payButtonText}>Thanh toán</Text>
         </TouchableOpacity>
+
+        <Modal
+          visible={isRecipientModalVisible}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setIsRecipientModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Thông tin người nhận</Text>
+              
+              <TextInput
+                style={styles.input}
+                placeholder="Tên người nhận"
+                value={recipient.name}
+                onChangeText={(text) => setRecipient({...recipient, name: text})}
+              />
+
+              <TextInput
+                style={styles.input}
+                placeholder="Số điện thoại"
+                value={recipient.phone}
+                keyboardType="phone-pad"
+                onChangeText={(text) => setRecipient({...recipient, phone: text})}
+              />
+
+              <View style={styles.addressContainer}>
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  placeholder="Địa chỉ"
+                  value={recipient.address}
+                  editable={false}
+                />
+                <TouchableOpacity 
+                  style={styles.mapButton}
+                  onPress={() => {
+                    setIsRecipientModalVisible(false);
+                    navigation.navigate('Map', {
+                      previousScreen: 'PaymentOptions'
+                    });
+                  }}
+                >
+                  <Icon name="map" size={24} color={colors.buttons} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.cancelButton]}
+                  onPress={() => setIsRecipientModalVisible(false)}
+                >
+                  <Text style={styles.modalButtonText}>Hủy</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.confirmButton]}
+                  onPress={handleRecipientSubmit}
+                >
+                  <Text style={styles.modalButtonText}>Xác nhận</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </ScrollView>
     </View>
   );
@@ -521,5 +672,73 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: colors.white,
     fontWeight: 'bold',
+  },
+  recipientButton: {
+    backgroundColor: colors.grey5,
+    padding: 15,
+    borderRadius: 8,
+    marginHorizontal: 16,
+    marginTop: 10,
+    alignItems: 'center',
+  },
+  recipientButtonText: {
+    color: colors.grey1,
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    padding: 20,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.grey4,
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 15,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+  },
+  modalButton: {
+    flex: 1,
+    padding: 15,
+    borderRadius: 8,
+    marginHorizontal: 5,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: colors.grey5,
+  },
+  confirmButton: {
+    backgroundColor: colors.buttons,
+  },
+  modalButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  addressContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  mapButton: {
+    padding: 10,
+    marginLeft: 10,
   },
 });

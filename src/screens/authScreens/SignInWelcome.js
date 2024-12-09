@@ -20,8 +20,7 @@ export default function SignInWelcomeScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerText}>HAPPY RESTAURANTS</Text>
-        <Text style={styles.headerText}></Text>
+        <Text style={styles.headerText}>Nhà Hàng Happy</Text>
       </View>
 
       <View style={styles.swiperContainer}>

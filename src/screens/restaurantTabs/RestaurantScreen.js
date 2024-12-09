@@ -9,29 +9,29 @@ import Table from '../../components/Table'; // Import Table component
 import ReviewComponent from '../../components/ReviewComponent'; // Import component
 import RatingComponent from '../../components/RatingComponent'; // Import component
 import RatingSummary from '../../components/RatingSummary';
-const TABS = ['MENU', 'Thông tin', 'Đặt bàn', 'Đánh giá'];
+const TABS = ['Thông tin', 'MENU', 'Đặt bàn', 'Đánh giá'];
 
 export default function RestaurantScreen({ route }) {
     const { restaurantId } = route.params;
     const [restaurantData, setRestaurantData] = useState(null);
-    const [activeTab, setActiveTab] = useState('MENU');
+    const [activeTab, setActiveTab] = useState('Thông tin');
     const navigation = useNavigation(); 
 
     useEffect(() => {
-        const fetchRestaurant = async () => {
-            try {
-                const restaurantDoc = await firestore().collection('restaurants').doc(restaurantId).get();
-                if (restaurantDoc.exists) {
-                    setRestaurantData(restaurantDoc.data());
+        const subscriber = firestore()
+            .collection('restaurants')
+            .doc(restaurantId)
+            .onSnapshot(documentSnapshot => {
+                if (documentSnapshot.exists) {
+                    setRestaurantData(documentSnapshot.data());
                 } else {
                     console.log('No such document!');
                 }
-            } catch (error) {
-                console.error('Error fetching restaurant:', error);
-            }
-        };
+            }, error => {
+                console.error('Error listening to restaurant updates:', error);
+            });
 
-        fetchRestaurant();
+        return () => subscriber();
     }, [restaurantId]);
 
     if (!restaurantData) {
@@ -44,12 +44,6 @@ export default function RestaurantScreen({ route }) {
 
     const renderTabContent = () => {
         switch (activeTab) {
-            case 'MENU':
-                return (
-                    <View style={{ flex: 1 }}>
-                        <Menu restaurantId={restaurantId} />
-                    </View>
-                );
             case 'Thông tin':
                 return (
                     <View style={{ flex: 1 }}>
@@ -90,6 +84,12 @@ export default function RestaurantScreen({ route }) {
                         )}
                     </View>
                 );
+            case 'MENU':
+                return (
+                    <View style={{ flex: 1 }}>
+                        <Menu restaurantId={restaurantId} />
+                    </View>
+                );    
             case 'Đặt bàn':
                 return (
                     <View style={{ flex: 1 }}>
