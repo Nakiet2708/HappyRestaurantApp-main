@@ -7,7 +7,7 @@ import firestore from '@react-native-firebase/firestore';
 const ReviewComponent = ({ restaurantName }) => {
   const [reviews, setReviews] = useState([]);
   const [currentPage, setCurrentPage] = useState(0);
-  const reviewsPerPage = 2;
+  const reviewsPerPage = 4;
 
   useEffect(() => {
     const subscriber = firestore()
@@ -54,7 +54,15 @@ const ReviewComponent = ({ restaurantName }) => {
         />
         <View>
           <Text style={styles.name}>{item.username}</Text>
-          <Text style={styles.date}>{item.date}</Text>
+          <Text style={styles.date}>
+            {new Date(item.date).toLocaleString('vi-VN', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </Text>
         </View>
       </View>
       <View style={styles.ratingContainer}>
