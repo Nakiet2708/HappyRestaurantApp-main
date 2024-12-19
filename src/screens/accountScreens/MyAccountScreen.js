@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { colors } from '../../global/styles';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import HomeHeader from '../../components/HomeHeader';
+import { globalSignOut } from '../../utils/authUtils';
 
 const menuItems = [
     {
@@ -52,62 +53,66 @@ export default function MyAccountScreen({ navigation }) {
         };
 
         getUser();
+
+        // Cleanup function
+        return () => {
+            setUser(null);
+            setUserData({ image: '', username: '' });
+        };
     }, []);
 
     useEffect(() => {
+        let unsubscribe = () => {};
+        
         if (user) {
-            fetchUserData(user.email);
-        }
-    }, [user]);
-
-    const fetchUserData = async (email) => {
-        setLoading(true);
-        try {
-            const userDoc = await firestore().collection('USERS').doc(email).get();
-            const defaultImage = require('../../../assets/Image/avatar-vo-danh.png');
-            
-            if (userDoc.exists) {
-                const data = userDoc.data();
-                if (data.image) {
-                    // Nếu có ảnh từ server
-                    setUserData({
-                        image: { uri: data.image },
-                        username: data.username || email.split('@')[0],
-                    });
-                } else {
-                    // Nếu không có ảnh từ server, dùng ảnh mặc định
+            const fetchData = async () => {
+                setLoading(true);
+                try {
+                    const userDoc = await firestore().collection('USERS').doc(user.email).get();
+                    const defaultImage = require('../../../assets/Image/avatar-vo-danh.png');
+                    
+                    if (userDoc.exists) {
+                        const data = userDoc.data();
+                        setUserData({
+                            image: data.image ? { uri: data.image } : defaultImage,
+                            username: data.username || user.email.split('@')[0],
+                        });
+                    } else {
+                        setUserData({
+                            image: defaultImage,
+                            username: user.email.split('@')[0],
+                        });
+                    }
+                } catch (error) {
+                    console.error("Error fetching user data: ", error);
+                    const defaultImage = require('../../../assets/Image/avatar-vo-danh.png');
                     setUserData({
                         image: defaultImage,
-                        username: data.username || email.split('@')[0],
+                        username: user.email.split('@')[0],
                     });
+                } finally {
+                    setLoading(false);
                 }
-            } else {
-                // Nếu không có document, dùng ảnh mặc định
-                setUserData({
-                    image: defaultImage,
-                    username: email.split('@')[0],
-                });
-            }
+            };
+
+            fetchData();
+        }
+
+        // Cleanup function
+        return () => {
+            unsubscribe();
+        };
+    }, [user]);
+
+    const handleSignOut = async () => {
+        try {
+            setLoading(true);
+            await globalSignOut(navigation);
         } catch (error) {
-            console.error("Error fetching user data: ", error);
-            // Trong trường hợp lỗi, vẫn set ảnh mặc định
-            const defaultImage = require('../../../assets/Image/avatar-vo-danh.png');
-            setUserData({
-                image: defaultImage,
-                username: email.split('@')[0],
-            });
+            Alert.alert("Lỗi", "Không thể đăng xuất. Vui lòng thử lại.");
         } finally {
             setLoading(false);
         }
-    };
-
-    const handleSignOut = async () => {
-        await auth().signOut();
-        await AsyncStorage.removeItem('user');
-        setUser(null);
-        setUserData({ image: '', username: '' });
-        setLoading(false);
-        navigation.navigate('SignInWelcomeScreen');
     };
 
     const MenuItem = ({ title, icon, onPress }) => (

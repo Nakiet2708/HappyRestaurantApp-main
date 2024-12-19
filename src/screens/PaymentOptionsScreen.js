@@ -359,7 +359,7 @@ export default function PaymentOptionsScreen({ navigation, route }) {
       merchantcode,
       merchantnamelabel: merchantNameLabel,
       description: billdescription,
-      amount: 1000,
+      amount: totalPrice,
       orderId: "ID20181123192300",
       orderLabel: "Ma don hang",
       appScheme: "momocgv20170101"
